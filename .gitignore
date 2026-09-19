@@ -1,0 +1,20 @@
+echo "# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Environment variables — NEVER commit these
+.env
+.env.local
+.env.production
+
+# Supabase local
+.supabase/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vite
+*.local" > .gitignore
