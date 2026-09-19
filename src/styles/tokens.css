@@ -1,0 +1,318 @@
+/* =============================================================
+   VERLYN TECH — DESIGN TOKENS
+   All colour, typography, spacing, and elevation values live
+   here. Nothing in the codebase uses hardcoded hex values.
+   ============================================================= */
+
+/* ---------------------------------------------------------
+   LIGHT MODE (default)
+   --------------------------------------------------------- */
+:root {
+  /* Brand palette */
+  --color-midnight:    #02060A;
+  --color-deep-navy:   #0B1521;
+  --color-ocean:       #13263B;
+  --color-steel:       #3A5C8C;
+  --color-cyan:        #63A7D4;
+  --color-ice:         #E3F1F8;
+  --color-primary:     #24428F;
+  --color-white:       #FFFFFF;
+
+  /* Surfaces */
+  --surface-page:      #F0F4F8;
+  --surface-card:      #FFFFFF;
+  --surface-raised:    #E3F1F8;
+  --surface-overlay:   rgba(2, 6, 10, 0.4);
+  --surface-input:     #FFFFFF;
+  --surface-input-focus: #E3F1F8;
+  --surface-nav:       #FFFFFF;
+  --surface-sidebar:   #F0F4F8;
+  --surface-table-head: #E3F1F8;
+  --surface-table-row: #FFFFFF;
+  --surface-table-row-alt: #F7FAFC;
+  --surface-table-hover: #EBF4FA;
+
+  /* Text */
+  --text-primary:      #02060A;
+  --text-secondary:    #3A5C8C;
+  --text-muted:        #6B8CAE;
+  --text-inverse:      #FFFFFF;
+  --text-link:         #24428F;
+  --text-link-hover:   #63A7D4;
+  --text-placeholder:  #9BB5CC;
+
+  /* Borders */
+  --border-default:    #C8DCE9;
+  --border-strong:     #3A5C8C;
+  --border-focus:      #24428F;
+  --border-input:      #C8DCE9;
+
+  /* Interactive */
+  --interactive-primary:        #24428F;
+  --interactive-primary-hover:  #1A3270;
+  --interactive-primary-active: #13263B;
+  --interactive-secondary:      #E3F1F8;
+  --interactive-secondary-hover:#C8DCE9;
+  --interactive-danger:         #C0392B;
+  --interactive-danger-hover:   #96281B;
+  --interactive-success:        #1A7A4A;
+  --interactive-warning:        #B7690A;
+
+  /* Status badges */
+  --status-pending-bg:     #FEF3CD;
+  --status-pending-text:   #7D4E00;
+  --status-pending-border: #F0C040;
+  --status-progress-bg:    #D6EAF8;
+  --status-progress-text:  #1A4E7A;
+  --status-progress-border:#63A7D4;
+  --status-done-bg:        #D5F0E3;
+  --status-done-text:      #1A5C35;
+  --status-done-border:    #2ECC71;
+  --status-overdue-bg:     #FADBD8;
+  --status-overdue-text:   #7B241C;
+  --status-overdue-border: #E74C3C;
+
+  /* Role badges */
+  --role-admin-bg:      #EAE0F8;
+  --role-admin-text:    #4A1A8A;
+  --role-manager-bg:    #D6EAF8;
+  --role-manager-text:  #1A4E7A;
+  --role-employee-bg:   #E3F1F8;
+  --role-employee-text: #2C5F7A;
+
+  /* Elevation / shadow */
+  --shadow-sm:   0 1px 3px rgba(2, 6, 10, 0.08);
+  --shadow-md:   0 4px 12px rgba(2, 6, 10, 0.10);
+  --shadow-lg:   0 8px 24px rgba(2, 6, 10, 0.12);
+  --shadow-focus: 0 0 0 3px rgba(36, 66, 143, 0.25);
+
+  /* Typography */
+  --font-family:       'Inter', 'Segoe UI', system-ui, sans-serif;
+  --font-mono:         'JetBrains Mono', 'Consolas', monospace;
+
+  --font-size-xs:      0.75rem;   /* 12px */
+  --font-size-sm:      0.8125rem; /* 13px */
+  --font-size-base:    0.875rem;  /* 14px */
+  --font-size-md:      1rem;      /* 16px */
+  --font-size-lg:      1.125rem;  /* 18px */
+  --font-size-xl:      1.25rem;   /* 20px */
+  --font-size-2xl:     1.5rem;    /* 24px */
+  --font-size-3xl:     1.875rem;  /* 30px */
+
+  --font-weight-normal:   400;
+  --font-weight-medium:   500;
+  --font-weight-semibold: 600;
+  --font-weight-bold:     700;
+
+  --line-height-tight:  1.25;
+  --line-height-base:   1.5;
+  --line-height-relaxed:1.65;
+
+  --letter-spacing-tight: -0.01em;
+  --letter-spacing-base:   0em;
+  --letter-spacing-wide:   0.04em;
+
+  /* Spacing scale (4px base) */
+  --space-1:   0.25rem;  /* 4px  */
+  --space-2:   0.5rem;   /* 8px  */
+  --space-3:   0.75rem;  /* 12px */
+  --space-4:   1rem;     /* 16px */
+  --space-5:   1.25rem;  /* 20px */
+  --space-6:   1.5rem;   /* 24px */
+  --space-8:   2rem;     /* 32px */
+  --space-10:  2.5rem;   /* 40px */
+  --space-12:  3rem;     /* 48px */
+  --space-16:  4rem;     /* 64px */
+  --space-20:  5rem;     /* 80px */
+
+  /* Layout */
+  --nav-height:        56px;
+  --sidebar-width:     220px;
+  --content-max-width: 1280px;
+  --card-radius:       4px;
+  --input-radius:      3px;
+  --badge-radius:      2px;
+  --button-radius:     3px;
+
+  /* Transitions */
+  --transition-fast:   100ms ease;
+  --transition-base:   180ms ease;
+  --transition-slow:   300ms ease;
+
+  /* Z-index scale */
+  --z-base:     0;
+  --z-raised:   10;
+  --z-dropdown: 100;
+  --z-sticky:   200;
+  --z-overlay:  300;
+  --z-modal:    400;
+  --z-toast:    500;
+}
+
+/* ---------------------------------------------------------
+   DARK MODE
+   --------------------------------------------------------- */
+[data-theme="dark"] {
+  /* Surfaces */
+  --surface-page:       #02060A;
+  --surface-card:       #0B1521;
+  --surface-raised:     #13263B;
+  --surface-overlay:    rgba(2, 6, 10, 0.7);
+  --surface-input:      #0B1521;
+  --surface-input-focus:#13263B;
+  --surface-nav:        #0B1521;
+  --surface-sidebar:    #02060A;
+  --surface-table-head: #13263B;
+  --surface-table-row:  #0B1521;
+  --surface-table-row-alt: #0D1B2A;
+  --surface-table-hover:#13263B;
+
+  /* Text */
+  --text-primary:       #E3F1F8;
+  --text-secondary:     #63A7D4;
+  --text-muted:         #3A5C8C;
+  --text-inverse:       #02060A;
+  --text-link:          #63A7D4;
+  --text-link-hover:    #E3F1F8;
+  --text-placeholder:   #3A5C8C;
+
+  /* Borders */
+  --border-default:     #13263B;
+  --border-strong:      #3A5C8C;
+  --border-focus:       #63A7D4;
+  --border-input:       #13263B;
+
+  /* Interactive */
+  --interactive-primary:        #24428F;
+  --interactive-primary-hover:  #2E53B0;
+  --interactive-primary-active: #3A5C8C;
+  --interactive-secondary:      #13263B;
+  --interactive-secondary-hover:#1A3A5C;
+  --interactive-danger:         #E74C3C;
+  --interactive-danger-hover:   #C0392B;
+  --interactive-success:        #2ECC71;
+  --interactive-warning:        #F39C12;
+
+  /* Status badges */
+  --status-pending-bg:     #3D2E00;
+  --status-pending-text:   #F0C040;
+  --status-pending-border: #7D5A00;
+  --status-progress-bg:    #0D2540;
+  --status-progress-text:  #63A7D4;
+  --status-progress-border:#1A4E7A;
+  --status-done-bg:        #0D2E1A;
+  --status-done-text:      #2ECC71;
+  --status-done-border:    #1A5C35;
+  --status-overdue-bg:     #2E0D0A;
+  --status-overdue-text:   #E74C3C;
+  --status-overdue-border: #7B241C;
+
+  /* Role badges */
+  --role-admin-bg:      #1A0A3A;
+  --role-admin-text:    #B07EF0;
+  --role-manager-bg:    #0D2540;
+  --role-manager-text:  #63A7D4;
+  --role-employee-bg:   #0B1521;
+  --role-employee-text: #3A5C8C;
+
+  /* Shadows */
+  --shadow-sm:   0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md:   0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg:   0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-focus: 0 0 0 3px rgba(99, 167, 212, 0.3);
+}
+
+/* ---------------------------------------------------------
+   GLOBAL RESET & BASE STYLES
+   --------------------------------------------------------- */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-normal);
+  line-height: var(--line-height-base);
+  color: var(--text-primary);
+  background-color: var(--surface-page);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color var(--transition-slow), color var(--transition-slow);
+}
+
+/* Visible focus ring for keyboard navigation — WCAG 2.1 AA */
+:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: var(--input-radius);
+}
+
+/* Remove default focus for mouse users */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+a {
+  color: var(--text-link);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--text-link-hover);
+  text-decoration: underline;
+}
+
+img, svg {
+  display: block;
+  max-width: 100%;
+}
+
+button {
+  cursor: pointer;
+  font-family: var(--font-family);
+}
+
+input, select, textarea {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--surface-page);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Selection */
+::selection {
+  background: var(--color-cyan);
+  color: var(--color-midnight);
+}
