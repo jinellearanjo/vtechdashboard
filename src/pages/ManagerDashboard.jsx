@@ -12,12 +12,15 @@ import StatusBadge from '../components/StatusBadge'
 import SkeletonTable from '../components/SkeletonTable'
 import Toast from '../components/Toast'
 import { formatDate, isOverdue, daysUntil } from '../lib/dateUtils'
+import { getTaskFilePaths, removeFiles } from '../lib/documents'
+import ManagerTeams from './ManagerTeams'
 import styles from './ManagerDashboard.module.css'
 
 const SORT_FIELDS    = { title: 'Title', assigned_to: 'Assignee', deadline: 'Deadline', status: 'Status', created_at: 'Created' }
 
 const EMPTY_TASK = {
-  title: '', description: '', assigned_to: '', deadline: '', status: 'pending',
+  // assignee is 'u:<profile id>' (a person) or 't:<team id>' (a team)
+  title: '', description: '', assignee: '', deadline: '', status: 'pending',
 }
 
 export default function ManagerDashboard() {
@@ -28,6 +31,7 @@ export default function ManagerDashboard() {
         <Route index element={<ManagerHome />} />
         <Route path="tasks" element={<ManagerHome />} />
         <Route path="team"  element={<TeamView />} />
+        <Route path="teams" element={<ManagerTeams />} />
       </Routes>
     </div>
   )
@@ -40,6 +44,7 @@ function ManagerHome() {
 
   const [tasks,       setTasks]       = useState([])
   const [employees,   setEmployees]   = useState([])
+  const [teams,       setTeams]       = useState([])
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState(null)
   const [statusFilter,setStatusFilter]= useState('all')
@@ -65,14 +70,15 @@ function ManagerHome() {
     setLoading(true)
     setError(null)
 
-    const [tasksRes, employeesRes] = await Promise.all([
+    const [tasksRes, employeesRes, teamsRes] = await Promise.all([
       supabase
         .from('tasks')
         .select(`
           id, title, description, status, deadline, created_at,
-          assigned_to, assigned_by,
+          assigned_to, assigned_by, team_id,
           assignee:profiles!tasks_assigned_to_fkey(id, first_name, last_name, username),
-          assigner:profiles!tasks_assigned_by_fkey(id, first_name, last_name)
+          assigner:profiles!tasks_assigned_by_fkey(id, first_name, last_name),
+          team:teams(id, name)
         `)
         .order('created_at', { ascending: false }),
       supabase
@@ -80,13 +86,19 @@ function ManagerHome() {
         .select('id, first_name, last_name, username, role')
         .in('role', ['employee', 'manager'])
         .order('first_name'),
+      supabase
+        .from('teams')
+        .select('id, name')
+        .order('name'),
     ])
 
     if (tasksRes.error) { setError(tasksRes.error.message); setLoading(false); return }
     if (employeesRes.error) { setError(employeesRes.error.message); setLoading(false); return }
+    if (teamsRes.error) { setError(teamsRes.error.message); setLoading(false); return }
 
     setTasks(tasksRes.data ?? [])
     setEmployees(employeesRes.data ?? [])
+    setTeams(teamsRes.data ?? [])
     setLoading(false)
   }, [])
 
@@ -115,14 +127,15 @@ function ManagerHome() {
       return (
         t.title?.toLowerCase().includes(q) ||
         t.assignee?.first_name?.toLowerCase().includes(q) ||
-        t.assignee?.last_name?.toLowerCase().includes(q)
+        t.assignee?.last_name?.toLowerCase().includes(q) ||
+        t.team?.name?.toLowerCase().includes(q)
       )
     })
     .sort((a, b) => {
       let aVal = a[sortField], bVal = b[sortField]
       if (sortField === 'assigned_to') {
-        aVal = a.assignee?.last_name ?? ''
-        bVal = b.assignee?.last_name ?? ''
+        aVal = a.assignee?.last_name ?? a.team?.name ?? ''
+        bVal = b.assignee?.last_name ?? b.team?.name ?? ''
       }
       if (!aVal) return 1
       if (!bVal) return -1
@@ -162,7 +175,7 @@ function ManagerHome() {
     setFormFields({
       title:       task.title,
       description: task.description ?? '',
-      assigned_to: task.assigned_to ?? '',
+      assignee:    task.team_id ? `t:${task.team_id}` : task.assigned_to ? `u:${task.assigned_to}` : '',
       deadline:    task.deadline ?? '',
       status:      task.status,
     })
@@ -180,7 +193,7 @@ function ManagerHome() {
   const validateForm = () => {
     const errs = {}
     if (!formFields.title.trim())   errs.title = 'Title is required'
-    if (!formFields.assigned_to)    errs.assigned_to = 'Assignee is required'
+    if (!formFields.assignee)       errs.assignee = 'Assignee is required'
     if (!formFields.deadline)       errs.deadline = 'Deadline is required'
     setFormErrors(errs)
     return Object.keys(errs).length === 0
@@ -191,10 +204,14 @@ function ManagerHome() {
     if (!validateForm()) return
     setSaving(true)
 
+    // a task belongs to exactly one of: a person or a team (DB constraint); always send both
+    const [assigneeKind, assigneeId] = formFields.assignee.split(':')
+
     const payload = {
       title:       formFields.title.trim(),
       description: formFields.description.trim() || null,
-      assigned_to: formFields.assigned_to,
+      assigned_to: assigneeKind === 'u' ? assigneeId : null,
+      team_id:     assigneeKind === 't' ? assigneeId : null,
       deadline:    formFields.deadline,
       status:      formFields.status,
       assigned_by: profile.id,
@@ -233,11 +250,16 @@ function ManagerHome() {
     setTasks(t => t.filter(t => t.id !== taskId)) // optimistic
     setDeleteConfirm(null)
 
+    // The DB cascade removes the document rows but not the files in Storage, so grab the
+    // paths first and remove the files once the task is really gone.
+    const filePaths = await getTaskFilePaths(taskId)
+
     const { error } = await supabase.from('tasks').delete().eq('id', taskId)
     if (error) {
       setTasks(prev) // rollback
       showToast('Failed to delete task.', 'error')
     } else {
+      await removeFiles(filePaths)
       showToast('Task deleted.')
     }
   }
@@ -379,9 +401,11 @@ function ManagerHome() {
                       )}
                     </td>
                     <td className={styles.td}>
-                      {task.assignee
-                        ? `${task.assignee.first_name} ${task.assignee.last_name}`
-                        : <span className={styles.unassigned}>Unassigned</span>
+                      {task.team
+                        ? `${task.team.name} (team)`
+                        : task.assignee
+                          ? `${task.assignee.first_name} ${task.assignee.last_name}`
+                          : <span className={styles.unassigned}>Unassigned</span>
                       }
                     </td>
                     <td className={styles.td}>
@@ -483,22 +507,31 @@ function ManagerHome() {
 
               <div className={styles.modalRow}>
                 <div className={styles.field}>
-                  <label className={styles.label} htmlFor="m-assignee">Assignee *</label>
+                  <label className={styles.label} htmlFor="m-assignee">Assign to *</label>
                   <select
                     id="m-assignee"
-                    className={`${styles.input} ${formErrors.assigned_to ? styles.inputError : ''}`}
-                    value={formFields.assigned_to}
-                    onChange={e => setFormFields(f => ({ ...f, assigned_to: e.target.value }))}
+                    className={`${styles.input} ${formErrors.assignee ? styles.inputError : ''}`}
+                    value={formFields.assignee}
+                    onChange={e => setFormFields(f => ({ ...f, assignee: e.target.value }))}
                     disabled={saving}
                   >
-                    <option value="">Select team member…</option>
-                    {employees.map(emp => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.first_name} {emp.last_name} ({emp.role})
-                      </option>
-                    ))}
+                    <option value="">Select a person or team…</option>
+                    <optgroup label="People">
+                      {employees.map(emp => (
+                        <option key={emp.id} value={`u:${emp.id}`}>
+                          {emp.first_name} {emp.last_name} ({emp.role})
+                        </option>
+                      ))}
+                    </optgroup>
+                    {teams.length > 0 && (
+                      <optgroup label="Teams">
+                        {teams.map(t => (
+                          <option key={t.id} value={`t:${t.id}`}>{t.name}</option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
-                  {formErrors.assigned_to && <span className={styles.fieldError}>{formErrors.assigned_to}</span>}
+                  {formErrors.assignee && <span className={styles.fieldError}>{formErrors.assignee}</span>}
                 </div>
 
                 <div className={styles.field}>

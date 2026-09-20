@@ -6,10 +6,12 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { fetchAssignerMap } from '../lib/assigners'
 import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
 import StatusBadge from '../components/StatusBadge'
 import Toast from '../components/Toast'
+import TaskDocuments from '../components/TaskDocuments'
 import { formatDate, formatDateTime, isOverdue, daysUntil } from '../lib/dateUtils'
 import styles from './TaskDetail.module.css'
 
@@ -36,9 +38,10 @@ export default function TaskDetail() {
         .from('tasks')
         .select(`
           id, title, description, status, deadline, created_at,
-          assigned_to, assigned_by,
+          assigned_to, assigned_by, team_id,
           assignee:profiles!tasks_assigned_to_fkey(id, first_name, last_name, username, role),
-          assigner:profiles!tasks_assigned_by_fkey(id, first_name, last_name)
+          assigner:profiles!tasks_assigned_by_fkey(id, first_name, last_name),
+          team:teams(id, name)
         `)
         .eq('id', id)
         .single()
@@ -48,7 +51,20 @@ export default function TaskDetail() {
           ? 'Task not found or you do not have access.'
           : error.message)
       } else {
-        setTask(data)
+        // Employees can't read the assigner's profile row directly (RLS), so the embed is null
+        // for them; fall back to the names-only RPC.
+        let assigner = data.assigner
+        if (!assigner && data.assigned_by) {
+          const map = await fetchAssignerMap()
+          assigner = map[data.assigned_by] ?? null
+        }
+        // Team tasks: names-only roster (members can't read each other's profile rows directly).
+        let roster = []
+        if (data.team_id) {
+          const { data: r } = await supabase.rpc('get_team_roster', { p_team_id: data.team_id })
+          roster = r ?? []
+        }
+        setTask({ ...data, assigner, roster })
       }
       setLoading(false)
     }
@@ -79,7 +95,8 @@ export default function TaskDetail() {
   const canUpdateStatus = () => {
     if (!task) return false
     if (isManager) return true
-    return task.assigned_to === profile.id
+    // RLS only lets a non-manager open this task if it's theirs or their team's
+    return task.assigned_to === profile.id || !!task.team_id
   }
 
   // ── Render ─────────────────────────────────────────────────
@@ -159,6 +176,8 @@ export default function TaskDetail() {
                   }
                 </div>
               </div>
+
+              <TaskDocuments taskId={task.id} showToast={showToast} />
             </div>
 
             {/* Sidebar */}
@@ -183,8 +202,22 @@ export default function TaskDetail() {
 
               {/* Assignee */}
               <div className={styles.sideCard}>
-                <h2 className={styles.sideLabel}>Assignee</h2>
-                {task.assignee ? (
+                <h2 className={styles.sideLabel}>{task.team ? 'Team' : 'Assignee'}</h2>
+                {task.team ? (
+                  <div>
+                    <p className={styles.assigneeName}>{task.team.name}</p>
+                    <p className={styles.assigneeUsername}>
+                      {task.roster.length} {task.roster.length === 1 ? 'member' : 'members'}
+                    </p>
+                    {task.roster.length > 0 && (
+                      <ul className={styles.rosterList}>
+                        {task.roster.map(m => (
+                          <li key={m.id}>{m.first_name} {m.last_name}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ) : task.assignee ? (
                   <div className={styles.assigneeRow}>
                     <span className={styles.assigneeAvatar}>
                       {task.assignee.first_name?.[0]}{task.assignee.last_name?.[0]}

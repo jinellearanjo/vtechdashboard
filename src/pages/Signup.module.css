@@ -1,51 +1,69 @@
 /* src/pages/Signup.module.css */
 
 .page {
+  position: relative;
   display: flex;
-  align-items: flex-start;
   justify-content: center;
   min-height: 100vh;
-  background-color: var(--surface-page);
-  padding: var(--space-8) var(--space-6);
+  background-color: var(--color-deep-navy);
+  padding: var(--space-10) var(--space-6);
+}
+
+/* the card would blend into the page in dark theme, so go one step darker there */
+:global([data-theme="dark"]) .page {
+  background-color: var(--color-midnight);
+}
+
+.content {
+  position: relative;
+  width: 100%;
+  max-width: 680px;
+}
+
+/* Brand header above the card */
+.brandHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-8);
+  text-align: center;
+}
+
+.brandMark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  background-color: var(--color-primary);
+  color: var(--color-white);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-wide);
+  border-radius: var(--card-radius);
+  margin-bottom: var(--space-1);
+}
+
+.brandName {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-tight);
+  color: var(--color-white);
+}
+
+.brandLine {
+  font-size: var(--font-size-base);
+  color: var(--color-cyan);
 }
 
 .panel {
   width: 100%;
-  max-width: 680px;
   background-color: var(--surface-card);
   border: 1px solid var(--border-default);
   border-radius: var(--card-radius);
-  box-shadow: var(--shadow-md);
-  padding: var(--space-8);
-}
-
-/* Logo */
-.logoRow {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  margin-bottom: var(--space-6);
-}
-
-.logoMark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  background-color: var(--interactive-primary);
-  color: var(--color-white);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: var(--letter-spacing-wide);
-  border-radius: var(--card-radius);
-}
-
-.logoName {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
-  letter-spacing: var(--letter-spacing-tight);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-10);
 }
 
 /* Headings */
@@ -341,4 +359,9 @@
   font-size: var(--font-size-sm);
   color: var(--text-muted);
   text-align: center;
+}
+
+@media (max-width: 560px) {
+  .page  { padding: var(--space-6) var(--space-4); }
+  .panel { padding: var(--space-6); }
 }

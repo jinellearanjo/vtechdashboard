@@ -2,31 +2,82 @@
 
 .page {
   display: flex;
-  align-items: center;
-  justify-content: center;
   min-height: 100vh;
   background-color: var(--surface-page);
-  padding: var(--space-6);
+}
+
+/* ── Brand side ─────────────────────────────────────────── */
+.brand {
+  position: relative;
+  overflow: hidden;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  padding: var(--space-12);
+  background-color: var(--color-deep-navy);
+  text-align: center;
+}
+
+.brandMark {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 88px;
+  height: 88px;
+  background-color: var(--color-primary);
+  color: var(--color-white);
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-wide);
+  border-radius: var(--card-radius);
+}
+
+.brandName {
+  position: relative;
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: var(--letter-spacing-tight);
+  color: var(--color-white);
+}
+
+.brandLine {
+  position: relative;
+  font-size: var(--font-size-md);
+  color: var(--color-cyan);
+}
+
+/* ── Sign-in side ───────────────────────────────────────── */
+.main {
+  flex: 0 0 clamp(520px, 48vw, 720px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-8);
 }
 
 .panel {
   width: 100%;
-  max-width: 400px;
+  max-width: 520px;
   background-color: var(--surface-card);
   border: 1px solid var(--border-default);
   border-radius: var(--card-radius);
-  box-shadow: var(--shadow-md);
-  padding: var(--space-8) var(--space-8);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-12) var(--space-10);
 }
 
-/* Logo */
-.logoRow {
-  display: flex;
+/* The panel's own logo is only needed when the brand side is hidden */
+.panelLogo {
+  display: none;
   align-items: center;
   gap: var(--space-2);
   margin-bottom: var(--space-6);
 }
 
+/* Logo (small, used by .panelLogo) */
 .logoMark {
   display: flex;
   align-items: center;
@@ -50,17 +101,17 @@
 
 /* Headings */
 .heading {
-  font-size: var(--font-size-xl);
+  font-size: var(--font-size-3xl);
   font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
   letter-spacing: var(--letter-spacing-tight);
-  margin-bottom: var(--space-1);
+  margin-bottom: var(--space-2);
 }
 
 .subheading {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-md);
   color: var(--text-muted);
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-8);
   line-height: var(--line-height-base);
 }
 
@@ -69,14 +120,14 @@
   display: flex;
   border: 1px solid var(--border-default);
   border-radius: var(--button-radius);
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-6);
   overflow: hidden;
 }
 
 .tab {
   flex: 1;
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--font-size-sm);
+  padding: var(--space-3) var(--space-3);
+  font-size: var(--font-size-base);
   font-weight: var(--font-weight-medium);
   color: var(--text-muted);
   background: none;
@@ -118,7 +169,7 @@
 .form {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
 .field {
@@ -128,15 +179,15 @@
 }
 
 .label {
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-base);
   font-weight: var(--font-weight-medium);
   color: var(--text-primary);
 }
 
 .input {
   width: 100%;
-  padding: var(--space-2) var(--space-3);
-  font-size: var(--font-size-base);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-md);
   color: var(--text-primary);
   background-color: var(--surface-input);
   border: 1px solid var(--border-input);
@@ -210,8 +261,8 @@
 /* Submit button */
 .submit {
   width: 100%;
-  padding: var(--space-2) var(--space-4);
-  font-size: var(--font-size-base);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-medium);
   color: var(--color-white);
   background-color: var(--interactive-primary);
@@ -233,8 +284,25 @@
 
 /* Footer */
 .footer {
-  margin-top: var(--space-6);
-  font-size: var(--font-size-sm);
+  margin-top: var(--space-8);
+  font-size: var(--font-size-base);
   color: var(--text-muted);
   text-align: center;
+}
+
+/* ── Responsive ─────────────────────────────────────────── */
+@media (max-width: 960px) {
+  .brand { display: none; }
+
+  .main {
+    flex: 1 1 auto;
+    padding: var(--space-6);
+  }
+
+  .panelLogo { display: flex; }
+}
+
+@media (max-width: 520px) {
+  .main { padding: var(--space-4); }
+  .panel { padding: var(--space-8) var(--space-6); }
 }

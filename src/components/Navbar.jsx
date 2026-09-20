@@ -40,7 +40,7 @@ export default function Navbar() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  const isActive = (path) => location.pathname.startsWith(path)
+  const isActive = (path) => location.pathname === path || location.pathname.startsWith(`${path}/`)
 
   const handleSignOut = async () => {
     setDropdownOpen(false)
@@ -98,6 +98,13 @@ export default function Navbar() {
                   aria-current={isActive('/manager/team') ? 'page' : undefined}
                 >
                   Team
+                </Link>
+                <Link
+                  to="/manager/teams"
+                  className={`${styles.navLink} ${isActive('/manager/teams') ? styles.navLinkActive : ''}`}
+                  aria-current={isActive('/manager/teams') ? 'page' : undefined}
+                >
+                  Teams
                 </Link>
               </>
             )}

@@ -570,10 +570,10 @@ function ExportTab({ showToast }) {
       if (type === 'tasks-csv') {
         const { data, error } = await supabase
           .from('tasks')
-          .select('id, title, description, status, deadline, created_at, assigned_to, assigned_by')
+          .select('id, title, description, status, deadline, created_at, assigned_to, team_id, assigned_by')
           .order('created_at', { ascending: false })
         if (error) throw error
-        const csv = toCSV(data, ['id','title','description','status','deadline','created_at','assigned_to','assigned_by'])
+        const csv = toCSV(data, ['id','title','description','status','deadline','created_at','assigned_to','team_id','assigned_by'])
         downloadCSV(csv, `tasks-export-${formatDate(new Date().toISOString())}.csv`)
         showToast('Tasks exported.')
       }

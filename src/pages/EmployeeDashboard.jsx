@@ -12,6 +12,7 @@ import StatusBadge from '../components/StatusBadge'
 import SkeletonTable from '../components/SkeletonTable'
 import Toast from '../components/Toast'
 import { formatDate, isOverdue, daysUntil } from '../lib/dateUtils'
+import { fetchAssignerMap } from '../lib/assigners'
 import styles from './EmployeeDashboard.module.css'
 
 const STATUS_OPTIONS = ['all', 'pending', 'in_progress', 'done', 'overdue']
@@ -32,40 +33,50 @@ export default function EmployeeDashboard() {
     setToast({ message, type })
   }, [])
 
-  // ── Fetch own tasks ────────────────────────────────────────
+  // ── Fetch my tasks: assigned to me, or to a team I'm in ────
   const fetchTasks = useCallback(async () => {
     setLoading(true)
     setError(null)
 
-    const { data, error } = await supabase
-      .from('tasks')
-      .select(`
-        id, title, description, status, deadline, created_at,
-        assigner:profiles!tasks_assigned_by_fkey(first_name, last_name)
-      `)
-      .eq('assigned_to', profile.id)
-      .order('deadline', { ascending: true })
+    // Explicit filter (not just RLS): a manager or admin opening "My Tasks" would otherwise see
+    // every task, since RLS lets them read all of them.
+    const { data: memberships } = await supabase
+      .from('team_members')
+      .select('team_id')
+      .eq('user_id', profile.id)
+    const teamIds = (memberships ?? []).map(m => m.team_id)
+    const mine = teamIds.length
+      ? `assigned_to.eq.${profile.id},team_id.in.(${teamIds.join(',')})`
+      : `assigned_to.eq.${profile.id}`
+
+    const [{ data, error }, assigners] = await Promise.all([
+      supabase
+        .from('tasks')
+        .select('id, title, description, status, deadline, created_at, assigned_by, team_id, team:teams(id, name)')
+        .or(mine)
+        .order('deadline', { ascending: true }),
+      fetchAssignerMap(),
+    ])
 
     if (error) { setError(error.message) }
-    else        { setTasks(data ?? []) }
+    else {
+      setTasks((data ?? []).map(t => ({ ...t, assigner: assigners[t.assigned_by] ?? null })))
+    }
     setLoading(false)
   }, [profile.id])
 
   // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch on mount
   useEffect(() => { fetchTasks() }, [fetchTasks])
 
-  // Realtime — own tasks only
+  // Realtime — no column filter (it can't express "mine or my team's"); RLS limits which change
+  // events this user receives, and every event just triggers a refetch of my own task list.
   useEffect(() => {
     const channel = supabase
       .channel('tasks-employee')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'tasks', filter: `assigned_to=eq.${profile.id}` },
-        fetchTasks
-      )
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, fetchTasks)
       .subscribe()
     return () => supabase.removeChannel(channel)
-  }, [fetchTasks, profile.id])
+  }, [fetchTasks])
 
   // ── Derived data ───────────────────────────────────────────
   const filteredTasks = tasks
@@ -233,6 +244,9 @@ export default function EmployeeDashboard() {
                         <Link to={`/tasks/${task.id}`} className={styles.taskLink}>
                           {task.title}
                         </Link>
+                        {task.team && (
+                          <span className={styles.taskDesc}>Team task · {task.team.name}</span>
+                        )}
                         {task.description && (
                           <span className={styles.taskDesc}>{task.description}</span>
                         )}

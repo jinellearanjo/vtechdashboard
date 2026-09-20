@@ -10,6 +10,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { z } from 'zod'
+import GridBackdrop from '../components/GridBackdrop'
 import styles from './Signup.module.css'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
@@ -91,7 +92,7 @@ export default function Signup() {
   const [showPass,    setShowPass]    = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
-  const [inviteResult,  setInviteResult]  = useState(null) // { valid, role, invite_id }
+  const [inviteResult,  setInviteResult]  = useState(null) // { valid, role }
 
   // Infer role from invite code validation result, else employee
   const resolvedRole = inviteResult?.role ?? 'employee'
@@ -119,6 +120,7 @@ export default function Signup() {
         not_found: 'Invite code not recognised.',
         used:      'This invite code has already been used.',
         expired:   'This invite code has expired.',
+        rate_limited: 'Too many invalid attempts. Please wait a few minutes and try again.',
         server_error: 'Could not validate code. Please try again.',
       }
       setErrors(e => ({ ...e, invite_code: messages[result.reason] ?? 'Invalid code.' }))
@@ -255,13 +257,16 @@ export default function Signup() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.panel}>
+      <GridBackdrop fixed />
 
-        {/* Logo */}
-        <div className={styles.logoRow}>
-          <span className={styles.logoMark}>VT</span>
-          <span className={styles.logoName}>Verlyn Tech</span>
-        </div>
+      <div className={styles.content}>
+        <header className={styles.brandHeader}>
+          <span className={styles.brandMark}>VT</span>
+          <h2 className={styles.brandName}>Verlyn Tech</h2>
+          <p className={styles.brandLine}>Company dashboard</p>
+        </header>
+
+      <div className={styles.panel}>
 
         <h1 className={styles.heading}>
           {isLegacy ? 'Complete registration' : 'Create an account'}
@@ -543,6 +548,7 @@ export default function Signup() {
           Already have an account?{' '}
           <Link to="/login">Sign in</Link>
         </p>
+      </div>
       </div>
     </div>
   )

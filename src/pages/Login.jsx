@@ -7,6 +7,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { z } from 'zod'
+import GridBackdrop from '../components/GridBackdrop'
 import styles from './Login.module.css'
 
 const standardSchema = z.object({
@@ -106,10 +107,21 @@ export default function Login() {
 
   return (
     <div className={styles.page}>
+
+      {/* Brand side (hidden on small screens) */}
+      <aside className={styles.brand}>
+        <GridBackdrop />
+        <span className={styles.brandMark}>VT</span>
+        <h2 className={styles.brandName}>Verlyn Tech</h2>
+        <p className={styles.brandLine}>Company dashboard</p>
+      </aside>
+
+      {/* Sign-in side */}
+      <main className={styles.main}>
       <div className={styles.panel}>
 
-        {/* Logo */}
-        <div className={styles.logoRow}>
+        {/* Logo (shown only when the brand side is hidden) */}
+        <div className={styles.panelLogo}>
           <span className={styles.logoMark}>VT</span>
           <span className={styles.logoName}>Verlyn Tech</span>
         </div>
@@ -265,6 +277,7 @@ export default function Login() {
           <Link to="/terms">Terms of Service</Link>
         </p>
       </div>
+      </main>
     </div>
   )
 }
