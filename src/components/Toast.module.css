@@ -1,0 +1,67 @@
+/* src/components/Toast.module.css */
+
+.toast {
+  position: fixed;
+  bottom: var(--space-6);
+  right: var(--space-6);
+  z-index: var(--z-toast);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--card-radius);
+  border: 1px solid transparent;
+  box-shadow: var(--shadow-lg);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  max-width: 360px;
+  animation: slideIn var(--transition-base) ease;
+}
+
+@keyframes slideIn {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.success {
+  background-color: var(--status-done-bg);
+  border-color:     var(--status-done-border);
+  color:            var(--status-done-text);
+}
+
+.error {
+  background-color: var(--status-overdue-bg);
+  border-color:     var(--status-overdue-border);
+  color:            var(--status-overdue-text);
+}
+
+.info {
+  background-color: var(--status-progress-bg);
+  border-color:     var(--status-progress-border);
+  color:            var(--status-progress-text);
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.message {
+  flex: 1;
+  line-height: var(--line-height-base);
+}
+
+.close {
+  background: none;
+  border: none;
+  font-size: var(--font-size-xs);
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+  padding: var(--space-1);
+  flex-shrink: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.close:hover { opacity: 1; }
