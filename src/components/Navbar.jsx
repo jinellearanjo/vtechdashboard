@@ -5,6 +5,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useUnreadTotal } from '../lib/chat'
 import styles from './Navbar.module.css'
 
 const ROLE_LABELS = {
@@ -19,6 +20,7 @@ export default function Navbar() {
   const navigate = useNavigate()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef(null)
+  const unread = useUnreadTotal()
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -48,24 +50,39 @@ export default function Navbar() {
     navigate('/login')
   }
 
-  const dashboardPath = isAdmin
-    ? '/admin'
-    : isManager
-    ? '/manager'
-    : '/employee'
-
   return (
     <header className={styles.navbar} role="banner">
       <div className={styles.inner}>
 
         {/* Left — Logo + nav links */}
         <div className={styles.left}>
-          <Link to={dashboardPath} className={styles.logo} aria-label="Verlyn Tech — home">
+          <Link to="/home" className={styles.logo} aria-label="Verlyn Tech — home">
             <span className={styles.logoMark}>VT</span>
             <span className={styles.logoName}>Verlyn Tech</span>
           </Link>
 
           <nav className={styles.nav} aria-label="Primary navigation">
+            {/* Everyone */}
+            <Link
+              to="/home"
+              className={`${styles.navLink} ${isActive('/home') ? styles.navLinkActive : ''}`}
+              aria-current={isActive('/home') ? 'page' : undefined}
+            >
+              Home
+            </Link>
+            <Link
+              to="/chat"
+              className={`${styles.navLink} ${isActive('/chat') ? styles.navLinkActive : ''}`}
+              aria-current={isActive('/chat') ? 'page' : undefined}
+            >
+              Chat
+              {unread > 0 && (
+                <span className={styles.navBadge} aria-label={`${unread} unread ${unread === 1 ? 'message' : 'messages'}`}>
+                  {unread > 99 ? '99+' : unread}
+                </span>
+              )}
+            </Link>
+
             {/* Employee nav */}
             <Link
               to="/employee"

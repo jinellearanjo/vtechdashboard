@@ -71,6 +71,9 @@
   --status-overdue-bg:     #FADBD8;
   --status-overdue-text:   #7B241C;
   --status-overdue-border: #E74C3C;
+  --status-review-bg:      #EDE9FE;
+  --status-review-text:    #5B21B6;
+  --status-review-border:  #A78BFA;
 
   /* Role badges */
   --role-admin-bg:      #EAE0F8;
@@ -206,6 +209,9 @@
   --status-overdue-bg:     #2E0D0A;
   --status-overdue-text:   #E74C3C;
   --status-overdue-border: #7B241C;
+  --status-review-bg:      #1F1640;
+  --status-review-text:    #A78BFA;
+  --status-review-border:  #5B21B6;
 
   /* Role badges */
   --role-admin-bg:      #1A0A3A;

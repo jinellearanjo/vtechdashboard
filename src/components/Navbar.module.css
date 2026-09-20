@@ -283,3 +283,17 @@
   background-color: var(--status-overdue-bg);
   color: var(--interactive-danger);
 }
+
+.navBadge {
+  display: inline-block;
+  margin-left: var(--space-2);
+  min-width: 18px;
+  padding: 0 5px;
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  line-height: 18px;
+  text-align: center;
+  color: var(--color-white);
+  background-color: var(--interactive-danger);
+  border-radius: 9px;
+}

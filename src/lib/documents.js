@@ -58,6 +58,7 @@ export function formatBytes(n) {
 
 const DOC_COLUMNS = `
   id, task_id, filename, size_bytes, mime_type, created_at, uploaded_by, storage_path,
+  status, reviewer_note, reviewed_at, drive_file_url, drive_folder,
   uploader:profiles!task_documents_uploaded_by_fkey(first_name, last_name)
 `
 
@@ -138,4 +139,34 @@ export async function getTaskFilePaths(taskId) {
 
 export async function removeFiles(paths) {
   if (paths.length) await supabase.storage.from(BUCKET).remove(paths)
+}
+
+// ── Review (managers / admins) ────────────────────────────────
+
+// The database sets reviewed_by / reviewed_at and strips HTML from the note.
+export async function rejectDocument(docId, note) {
+  const { data, error } = await supabase
+    .from('task_documents')
+    .update({ status: 'rejected', reviewer_note: note })
+    .eq('id', docId)
+    .select('id')
+  if (error) throw error
+  if (!data?.length) throw new Error('You do not have permission to review this document.')
+}
+
+// Accepting happens server-side: the push-to-drive function copies the file to Google Drive,
+// then marks the document accepted.
+export async function pushToDrive(docId, folderKey) {
+  const { data, error } = await supabase.functions.invoke('push-to-drive', {
+    body: { submission_id: docId, folder_key: folderKey },
+  })
+  if (error) {
+    let message = error.message
+    try {
+      const body = await error.context.json()
+      if (body?.error) message = body.error
+    } catch { /* not a JSON error body; keep the generic message */ }
+    throw new Error(message)
+  }
+  return data
 }

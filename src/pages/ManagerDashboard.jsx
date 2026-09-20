@@ -45,6 +45,7 @@ function ManagerHome() {
   const [tasks,       setTasks]       = useState([])
   const [employees,   setEmployees]   = useState([])
   const [teams,       setTeams]       = useState([])
+  const [reviewCounts, setReviewCounts] = useState({}) // task id -> submissions awaiting review
   const [loading,     setLoading]     = useState(true)
   const [error,       setError]       = useState(null)
   const [statusFilter,setStatusFilter]= useState('all')
@@ -70,7 +71,7 @@ function ManagerHome() {
     setLoading(true)
     setError(null)
 
-    const [tasksRes, employeesRes, teamsRes] = await Promise.all([
+    const [tasksRes, employeesRes, teamsRes, pendingRes] = await Promise.all([
       supabase
         .from('tasks')
         .select(`
@@ -90,6 +91,10 @@ function ManagerHome() {
         .from('teams')
         .select('id, name')
         .order('name'),
+      supabase
+        .from('task_documents')
+        .select('task_id')
+        .eq('status', 'pending_review'),
     ])
 
     if (tasksRes.error) { setError(tasksRes.error.message); setLoading(false); return }
@@ -99,6 +104,12 @@ function ManagerHome() {
     setTasks(tasksRes.data ?? [])
     setEmployees(employeesRes.data ?? [])
     setTeams(teamsRes.data ?? [])
+
+    // not critical: if this query fails the dashboard still works, just without review counts
+    const counts = {}
+    for (const d of pendingRes.data ?? []) counts[d.task_id] = (counts[d.task_id] ?? 0) + 1
+    setReviewCounts(counts)
+
     setLoading(false)
   }, [])
 
@@ -110,6 +121,7 @@ function ManagerHome() {
     const channel = supabase
       .channel('tasks-manager')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, fetchData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'task_documents' }, fetchData)
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [fetchData])
@@ -118,6 +130,7 @@ function ManagerHome() {
   const filteredTasks = tasks
     .filter(t => {
       if (statusFilter === 'overdue') return isOverdue(t.deadline) && t.status !== 'done'
+      if (statusFilter === 'review')  return (reviewCounts[t.id] ?? 0) > 0
       if (statusFilter !== 'all')     return t.status === statusFilter
       return true
     })
@@ -149,6 +162,7 @@ function ManagerHome() {
     inProgress:tasks.filter(t => t.status === 'in_progress').length,
     done:      tasks.filter(t => t.status === 'done').length,
     overdue:   tasks.filter(t => isOverdue(t.deadline) && t.status !== 'done').length,
+    review:    Object.values(reviewCounts).reduce((sum, n) => sum + n, 0), // submissions, not tasks
   }
 
   // ── Sorting ──────────────────────────────────────────────
@@ -302,10 +316,11 @@ function ManagerHome() {
           { label: 'In Progress', value: stats.inProgress, key: 'in_progress' },
           { label: 'Done',        value: stats.done,       key: 'done' },
           { label: 'Overdue',     value: stats.overdue,    key: 'overdue', danger: true },
+          { label: 'To review',   value: stats.review,     key: 'review',  review: true },
         ].map(s => (
           <button
             key={s.key}
-            className={`${styles.statCard} ${statusFilter === s.key ? styles.statCardActive : ''} ${s.danger && s.value > 0 ? styles.statCardDanger : ''}`}
+            className={`${styles.statCard} ${statusFilter === s.key ? styles.statCardActive : ''} ${s.danger && s.value > 0 ? styles.statCardDanger : ''} ${s.review && s.value > 0 ? styles.statCardReview : ''}`}
             onClick={() => setStatusFilter(s.key)}
             aria-pressed={statusFilter === s.key}
           >
@@ -398,6 +413,11 @@ function ManagerHome() {
                       </Link>
                       {task.description && (
                         <span className={styles.taskDesc}>{task.description}</span>
+                      )}
+                      {(reviewCounts[task.id] ?? 0) > 0 && (
+                        <span className={styles.reviewTag}>
+                          {reviewCounts[task.id]} to review
+                        </span>
                       )}
                     </td>
                     <td className={styles.td}>

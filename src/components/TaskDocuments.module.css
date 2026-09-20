@@ -77,12 +77,28 @@
 }
 
 .item {
+  padding: var(--space-3) var(--space-6);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.row {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: var(--space-3) var(--space-6);
-  border-bottom: 1px solid var(--border-default);
+}
+
+.nameLine {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-shrink: 0;
 }
 
 .item:last-child {
@@ -150,4 +166,147 @@
 @media (max-width: 560px) {
   .header { flex-direction: column; }
   .uploadBtn { width: 100%; }
+}
+
+/* ── Review status ─────────────────────────────────────── */
+.badge {
+  flex-shrink: 0;
+  padding: 2px var(--space-2);
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  border: 1px solid transparent;
+  border-radius: var(--badge-radius);
+  white-space: nowrap;
+}
+
+.badge_pending_review {
+  background-color: var(--status-review-bg);
+  color: var(--status-review-text);
+  border-color: var(--status-review-border);
+}
+
+.badge_accepted {
+  background-color: var(--status-done-bg);
+  color: var(--status-done-text);
+  border-color: var(--status-done-border);
+}
+
+.badge_rejected {
+  background-color: var(--status-overdue-bg);
+  color: var(--status-overdue-text);
+  border-color: var(--status-overdue-border);
+}
+
+.note {
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+  color: var(--status-overdue-text);
+  background-color: var(--status-overdue-bg);
+  border: 1px solid var(--status-overdue-border);
+  border-radius: var(--input-radius);
+  overflow-wrap: anywhere;
+}
+
+.driveLink {
+  font-size: var(--font-size-sm);
+  color: var(--text-link);
+}
+
+.driveLink:hover { color: var(--text-link-hover); }
+
+/* ── Review actions ────────────────────────────────────── */
+.acceptBtn,
+.rejectBtn,
+.cancelBtn,
+.rejectSolidBtn {
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-sm);
+  border-radius: var(--button-radius);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--transition-fast);
+}
+
+.acceptBtn {
+  color: var(--status-done-text);
+  background-color: var(--status-done-bg);
+  border: 1px solid var(--status-done-border);
+}
+
+.rejectBtn {
+  color: var(--status-overdue-text);
+  background: none;
+  border: 1px solid var(--status-overdue-border);
+}
+
+.cancelBtn {
+  color: var(--text-primary);
+  background: none;
+  border: 1px solid var(--border-default);
+}
+
+.rejectSolidBtn {
+  padding: var(--space-2) var(--space-4);
+  color: var(--color-white);
+  background-color: var(--interactive-danger);
+  border: none;
+}
+
+.acceptBtn:hover:not(:disabled),
+.rejectBtn:hover:not(:disabled),
+.cancelBtn:hover:not(:disabled) { background-color: var(--interactive-secondary); }
+
+.acceptBtn:disabled,
+.rejectBtn:disabled,
+.cancelBtn:disabled,
+.rejectSolidBtn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.panel {
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--surface-page);
+  border: 1px solid var(--border-default);
+  border-radius: var(--input-radius);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.panelLabel {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-primary);
+}
+
+.panelRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.input,
+.textarea {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-base);
+  color: var(--text-primary);
+  background-color: var(--surface-input);
+  border: 1px solid var(--border-input);
+  border-radius: var(--input-radius);
+}
+
+.input { min-width: 180px; }
+.textarea { width: 100%; resize: vertical; font-family: inherit; }
+
+.input:focus,
+.textarea:focus {
+  outline: none;
+  border-color: var(--border-focus);
+  box-shadow: var(--shadow-focus);
+}
+
+@media (max-width: 560px) {
+  .row { flex-direction: column; align-items: stretch; }
+  .actions { flex-wrap: wrap; }
 }

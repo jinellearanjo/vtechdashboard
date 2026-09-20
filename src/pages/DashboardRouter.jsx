@@ -1,6 +1,6 @@
 // src/pages/DashboardRouter.jsx
-// Reads the authenticated user's role and redirects to the correct dashboard.
-// This is what /dashboard resolves to — it never renders any UI itself.
+// What /dashboard resolves to: sends any signed-in user with a valid role to the home page.
+// It never renders any UI itself.
 
 import { Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
@@ -11,9 +11,10 @@ export default function DashboardRouter() {
 
   if (loading) return <PageLoader />
 
-  if (role === 'admin')    return <Navigate to="/admin"    replace />
-  if (role === 'manager')  return <Navigate to="/manager"  replace />
-  if (role === 'employee') return <Navigate to="/employee" replace />
+  // Everyone lands on the home page; role-specific dashboards are linked from the navbar.
+  if (role === 'admin' || role === 'manager' || role === 'employee') {
+    return <Navigate to="/home" replace />
+  }
 
   // Profile exists but role is unrecognised — should not happen in production
   return <Navigate to="/unauthorized" replace />

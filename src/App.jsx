@@ -12,6 +12,8 @@ import PageLoader from './components/PageLoader'
 const Login           = lazy(() => import('./pages/Login'))
 const Signup          = lazy(() => import('./pages/Signup'))
 const DashboardRouter = lazy(() => import('./pages/DashboardRouter'))
+const Home            = lazy(() => import('./pages/Home'))
+const Chat            = lazy(() => import('./pages/Chat'))
 const ManagerDashboard  = lazy(() => import('./pages/ManagerDashboard'))
 const EmployeeDashboard = lazy(() => import('./pages/EmployeeDashboard'))
 const TaskDetail      = lazy(() => import('./pages/TaskDetail'))
@@ -41,6 +43,11 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+
+        {/* Home + chat: every signed-in user */}
+        <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
+        <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+        <Route path="/chat/:channelId" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
 
         {/* Manager routes */}
         <Route

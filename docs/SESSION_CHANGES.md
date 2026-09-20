@@ -78,6 +78,36 @@ Applied on the hosted project with `supabase migration repair --status applied 2
   new `get_team_roster()` RPC (names only).
 - Audit: `teams`, `team_members`, and team changes on tasks.
 
+### `20260920000500_submission_review_and_channels.sql`
+- Review workflow on `task_documents`: `status` (pending_review / accepted / rejected), `reviewer_note`, `reviewed_by`, `reviewed_at`,
+  `drive_file_id`, `drive_file_url`, `drive_folder`. Existing documents become "pending review".
+- Insert policy now forces a clean pending row (an employee can't insert "accepted" or fake reviewer/Drive fields).
+- Only managers/admins can update rows; `guard_document_update` trigger: the file's details are immutable, a rejection needs a note,
+  HTML tags are stripped from notes, `reviewed_by`/`reviewed_at` are set by the database, clients can't set "accepted" or Drive fields
+  (only the service role, i.e. the `push-to-drive` function, can), and accepted rows can't be re-reviewed.
+- Delete rules: uploaders can withdraw their own file until it is accepted; managers/admins can delete any.
+  Storage delete policy mirrors it (`is_document_accepted()` helper).
+- `task_documents` added to the realtime publication (live "to review" counts).
+- `channels` table (RLS: public channels readable by everyone signed in, private/direct by managers/admins for now; managers/admins manage)
+  seeded with seven channels: marketing, legal, technical, sales, automations, **finance**, **lead-gen**.
+- Audit: document status changes (actor falls back to `reviewed_by` for service-role accepts) and channel changes.
+
+### `20260920000600_chat.sql`
+- `channels` gains `title`, `archived_at`, `dm_key`; existing channels get display titles ("Lead Gen").
+- New `channel_members` (role owner/member, `last_read_at`) and `messages` (edit and soft-delete; deleting blanks the text; 4000 chars).
+- Three kinds of conversation: **public channels** (managers/admins create them; every person is auto-joined by trigger, including
+  people who sign up later), **group chats** (anyone creates; invite-only, owner adds/removes, anyone can leave), **direct messages**
+  (one per pair, created on demand).
+- Privacy: group chats and DMs are readable only by their members. Managers and admins cannot read them. Managers/admins can
+  delete (moderate) messages in public channels only. Group and DM channel creation is not written to the audit log.
+- RLS on channels/members/messages via security-definer helpers (no recursion). Clients cannot insert members or change roles; that goes
+  through functions: `get_channel_overview` (sidebar with unread counts), `get_unread_total`, `mark_channel_read`, `get_channel_members`,
+  `get_directory` (names only), `get_or_create_dm`, `create_group_chat`, `add_channel_members`, `remove_channel_member`
+  (leaving promotes the longest-standing member; an empty group is archived).
+- Guard triggers: channel name/type/owner are immutable, DMs can't be edited, messages can't be moved or re-attributed, only the sender
+  can edit, deleted messages can't change.
+- `messages`, `channels`, `channel_members` added to the realtime publication.
+
 ### SQL you ran by hand earlier in the session (before migrations)
 - Seed invite `MGRINVITE` (manager, 7 days). **Delete it:** `delete from public.invite_codes where code = 'MGRINVITE';`
 - Insert of your admin profile (`admin`, id `d5be9294-...`).
@@ -94,6 +124,16 @@ Applied on the hosted project with `supabase migration repair --status applied 2
   I briefly appended a duplicate block, which broke TOML parsing; you reverted it. Still to do by hand:
   delete the leftover `[functions.mark-invite-used]` block at the end of `config.toml`.
 - Not added: an "audit log Edge Function". The audit log is written by database triggers, which cannot be bypassed.
+
+- **New** `push-to-drive` (`index.ts` + `google.ts`): verifies the caller's JWT, reads their role from `profiles`, validates
+  `submission_id` and `folder_key` (general, marketing, legal, technical, sales, automations, finance, lead-gen), copies the file from the
+  private bucket to the chosen Drive folder, then marks the submission accepted. Google auth supports OAuth refresh token (personal Drive)
+  or a service account (Shared Drive only, because service accounts have no storage quota). The helper logic (RS256 JWT signing,
+  token exchange, multipart body, Drive error mapping) is tested in Node; the function's Supabase and network calls are not tested end to end.
+  Added a third route for personal Gmail: an Apps Script bridge (`docs/apps-script/Code.gs`, secrets `GOOGLE_APPS_SCRIPT_URL` and
+  `GOOGLE_APPS_SCRIPT_SECRET`), because Google won't let an OAuth app leave Testing mode (7-day refresh tokens) without a homepage and privacy
+  policy on a domain you own. Route order: Apps Script, then OAuth, then service account.
+  Deploy: `supabase functions deploy push-to-drive --use-api`. Setup steps: `docs/DRIVE_SETUP.md`.
 
 ## 5. Frontend, file by file
 
@@ -146,6 +186,35 @@ Applied on the hosted project with `supabase migration repair --status applied 2
 - `TaskDetail.jsx`: team card with roster; team members can update status.
 - `Navbar.jsx`: new "Teams" link; active-link check is now exact-segment so "Team" and "Teams" don't both highlight.
 
+### Home page (`/home`)
+- New landing page for every role (`/dashboard` now redirects there, and so does the logo, top left): greeting, stat cards (open, due in
+  7 days, overdue, completed), progress bar, upcoming tasks (soonest first, with "Overdue by 2 days" / "Due tomorrow" labels), and a
+  month calendar with deadline days tinted by urgency (overdue, due within 3 days, upcoming, done), a day count, legend, and a
+  click-a-day list. Managers/admins get a "My tasks / Everyone" switch, plus a notice for submissions awaiting review.
+- Unread-messages notice links to chat. New files: `src/pages/Home.jsx`, `src/components/MonthCalendar.jsx`, `src/lib/calendar.js`
+  (date logic, unit-tested: month grids, Monday-first, leap days, overdue vs due-today), `src/lib/tasks.js`.
+- Navbar: new **Home** and **Chat** links (with an unread badge); logo goes to `/home`; the active-link check is exact-segment.
+
+### Chat (`/chat`, `/chat/:channelId`)
+- Sidebar: Channels, Group chats, Direct messages, collapsible Archived, unread badges; "+" buttons (channels: managers only).
+- Conversation view: realtime messages, day separators, grouped consecutive messages, links made clickable (http/https only),
+  Enter to send / Shift+Enter for a new line, edit and delete your own messages, managers can delete in public channels,
+  "load older messages", jump-to-latest, archived conversations are read-only.
+- Members panel: who's in a channel or group; group owners add/remove people; anyone can leave a group.
+- Managers can create, rename, archive and restore public channels; group owners can rename and archive their group.
+- New files: `src/pages/Chat.jsx`, `src/components/chat/*` (sidebar, thread, members panel, dialogs, helpers), `src/components/Modal.jsx`,
+  `src/lib/chat.js`. Helpers (link splitting, grouping, ordering) are unit-tested; the UI was smoke-tested in jsdom against a fake Supabase.
+
+### Submission review and Drive
+- `src/components/TaskDocuments.jsx` (+ CSS): now "Submissions". Status badge per file, reviewer note shown to the team on rejections,
+  manager **Accept** (folder picker, "Accept and save to Drive") and **Reject** (required note) panels, "Open in Google Drive" link for
+  managers on accepted files, uploaders can't delete accepted files.
+- `src/lib/documents.js`: new columns in the query, `rejectDocument()`, `pushToDrive()` (surfaces the function's error text).
+- `src/lib/driveFolders.js`: the eight Drive folders (keys must match the function).
+- `src/styles/tokens.css`: `--status-review-*` tokens (light and dark).
+- `src/pages/ManagerDashboard.jsx` (+ CSS): "To review" stat card (click to filter), "N to review" tag on tasks, live via realtime.
+- `docs/DRIVE_SETUP.md`: Google/Supabase setup, secrets, troubleshooting, and how this differs from the original brief.
+
 ## 6. Repo/CI additions
 - `.github/workflows/supabase-keepalive.yml`: pings the REST API every Monday and Thursday so the free-tier project isn't
   auto-paused, and fails (GitHub emails you) if the project is down. Needs repo secrets `SUPABASE_URL` and `SUPABASE_ANON_KEY`.
@@ -154,11 +223,12 @@ Applied on the hosted project with `supabase migration repair --status applied 2
 
 ## 7. What you still need to do
 1. Extract the final zip at the repo root.
-2. `supabase db push` (applies whichever of `...0300` and `...0400` are not applied yet).
+2. `supabase db push` (applies whichever of `...0300` to `...0600` are not applied yet).
 3. Delete the `[functions.mark-invite-used]` block at the end of `supabase/config.toml`.
 4. Add the two GitHub secrets for the keep-alive workflow.
 5. Delete the `MGRINVITE` invite; remove throwaway test accounts (Authentication, Users).
-6. Commit and push.
+6. Follow `docs/DRIVE_SETUP.md` (Google setup, secrets, `supabase functions deploy push-to-drive --use-api`).
+7. Commit and push.
 
 ## 8. Known gaps (not done)
 - Legacy login still keeps a plaintext synthetic password in `localStorage`.
@@ -169,6 +239,9 @@ Applied on the hosted project with `supabase migration repair --status applied 2
 - Free tier: no automated backups; storage files are not in database backups; project pauses after 7 days idle
   (keep-alive workflow mitigates); GitHub disables scheduled workflows after about 60 days without repo activity.
 - `supabase/.temp/` values remain in git history.
-- Planned but not started: messaging with group chats. The audit-log edge function was judged unnecessary.
+- Drive push not tested end to end (needs your Google credentials); accepted files copied to Drive are not removed if the submission is later deleted.
+- Chat has no file attachments, threads, reactions, search or push notifications. A person added to a group can read its earlier history.
+- Admins cannot read groups or DMs (by design); there is no admin override.
+- Messaging (Batch 6) is now built; the audit-log Edge Function was judged unnecessary.
 - Employees see one shared list for team tasks; there is no per-member completion tracking.
 - Deleting a team with tasks is blocked; the tasks must be reassigned first.
