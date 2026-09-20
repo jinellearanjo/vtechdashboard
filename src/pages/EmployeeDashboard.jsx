@@ -51,6 +51,7 @@ export default function EmployeeDashboard() {
     setLoading(false)
   }, [profile.id])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch on mount
   useEffect(() => { fetchTasks() }, [fetchTasks])
 
   // Realtime — own tasks only
@@ -112,7 +113,7 @@ export default function EmployeeDashboard() {
     else { setSortField(field); setSortDir('asc') }
   }
 
-  const SortIcon = ({ field }) => {
+  const renderSortIcon = (field) => {
     if (sortField !== field) return <span className={styles.sortNeutral}>↕</span>
     return <span className={styles.sortActive}>{sortDir === 'asc' ? '↑' : '↓'}</span>
   }
@@ -207,14 +208,14 @@ export default function EmployeeDashboard() {
               <thead>
                 <tr>
                   <th className={styles.th} onClick={() => handleSort('title')} tabIndex={0} onKeyDown={e => e.key === 'Enter' && handleSort('title')}>
-                    Task <SortIcon field="title" />
+                    Task {renderSortIcon('title')}
                   </th>
                   <th className={styles.th} onClick={() => handleSort('deadline')} tabIndex={0} onKeyDown={e => e.key === 'Enter' && handleSort('deadline')}>
-                    Deadline <SortIcon field="deadline" />
+                    Deadline {renderSortIcon('deadline')}
                   </th>
                   <th className={styles.th}>Assigned by</th>
                   <th className={styles.th} onClick={() => handleSort('status')} tabIndex={0} onKeyDown={e => e.key === 'Enter' && handleSort('status')}>
-                    Status <SortIcon field="status" />
+                    Status {renderSortIcon('status')}
                   </th>
                   <th className={styles.th}>Update</th>
                 </tr>

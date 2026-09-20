@@ -3,12 +3,12 @@
 // Includes retry logic for profile fetch — auth state fires before the
 // profiles row is guaranteed to be readable via RLS.
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 
-const RETRY_ATTEMPTS = 5
+const RETRY_ATTEMPTS = 3
 const RETRY_DELAY_MS = 600
 
 async function sleep(ms) {
@@ -59,48 +59,43 @@ export function AuthProvider({ children }) {
     setTheme(t => t === 'light' ? 'dark' : 'light')
   }, [])
 
-  // Initialise auth state on mount
+  // Single source of truth: onAuthStateChange fires INITIAL_SESSION on subscribe,
+  // then SIGNED_IN / TOKEN_REFRESHED / SIGNED_OUT. The profile is only fetched when
+  // the user changes, so token refreshes and tab-focus events don't refetch it.
+  const profileUserRef = useRef(null)
+
   useEffect(() => {
     let mounted = true
 
-    const init = async () => {
-      // Get existing session (page refresh / returning user)
-      const { data: { session } } = await supabase.auth.getSession()
-
-      if (!mounted) return
-
-      setSession(session)
-
-      if (session?.user) {
-        const profile = await fetchProfileWithRetry(session.user.id)
-        if (mounted) setProfile(profile)
-      }
-
-      if (mounted) setLoading(false)
-    }
-
-    init()
-
-    // Listen for sign-in, sign-out, token refresh
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      (event, session) => {
         if (!mounted) return
 
         setSession(session)
 
-        if (session?.user) {
-          // Show loading briefly while profile resolves
-          setLoading(true)
-          const profile = await fetchProfileWithRetry(session.user.id)
-          if (mounted) {
-            setProfile(profile)
-            setLoading(false)
-          }
-        } else {
-          // Signed out
+        if (!session?.user) {
+          profileUserRef.current = null
           setProfile(null)
           setLoading(false)
+          return
         }
+
+        if (profileUserRef.current === session.user.id) {
+          setLoading(false)
+          return
+        }
+
+        profileUserRef.current = session.user.id
+        setLoading(true)
+
+        // Defer: awaiting a supabase call inside this callback can deadlock the auth client.
+        setTimeout(async () => {
+          const p = await fetchProfileWithRetry(session.user.id)
+          if (!mounted) return
+          if (!p) profileUserRef.current = null // allow a retry on the next auth event
+          setProfile(p)
+          setLoading(false)
+        }, 0)
       }
     )
 
@@ -112,6 +107,7 @@ export function AuthProvider({ children }) {
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut()
+    profileUserRef.current = null
     setProfile(null)
     setSession(null)
   }, [])
@@ -144,6 +140,7 @@ export function AuthProvider({ children }) {
   )
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be used within an AuthProvider')

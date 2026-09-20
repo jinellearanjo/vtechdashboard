@@ -42,7 +42,7 @@ export default function Login() {
     const result = standardSchema.safeParse(fields)
     if (!result.success) {
       const fieldErrors = {}
-      result.error.errors.forEach(e => { fieldErrors[e.path[0]] = e.message })
+      result.error.issues.forEach(e => { fieldErrors[e.path[0]] = e.message })
       setErrors(fieldErrors)
       return
     }
@@ -67,7 +67,7 @@ export default function Login() {
     const result = legacySchema.safeParse(fields)
     if (!result.success) {
       const fieldErrors = {}
-      result.error.errors.forEach(e => { fieldErrors[e.path[0]] = e.message })
+      result.error.issues.forEach(e => { fieldErrors[e.path[0]] = e.message })
       setErrors(fieldErrors)
       return
     }

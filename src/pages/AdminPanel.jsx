@@ -24,8 +24,6 @@ const ROLE_LABELS = {
   employee: 'Contributor',
 }
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-
 export default function AdminPanel() {
   const [tab,   setTab]   = useState('users')
   const [toast, setToast] = useState(null)
@@ -64,7 +62,7 @@ export default function AdminPanel() {
         <div role="tabpanel" aria-label={TABS.find(t => t.key === tab)?.label}>
           {tab === 'users'   && <UsersTab   showToast={showToast} />}
           {tab === 'invites' && <InvitesTab showToast={showToast} />}
-          {tab === 'audit'   && <AuditTab   showToast={showToast} />}
+          {tab === 'audit'   && <AuditTab />}
           {tab === 'export'  && <ExportTab  showToast={showToast} />}
         </div>
       </main>
@@ -93,6 +91,7 @@ function UsersTab({ showToast }) {
     setLoading(false)
   }, [])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch on mount / dependency change
   useEffect(() => { fetchUsers() }, [fetchUsers])
 
   const handleRoleChange = async (userId, newRole) => {
@@ -101,13 +100,16 @@ function UsersTab({ showToast }) {
       return
     }
     setChanging(userId)
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('profiles')
       .update({ role: newRole })
       .eq('id', userId)
+      .select('id')
 
     if (error) {
       showToast('Role update failed. ' + error.message, 'error')
+    } else if (!data?.length) {
+      showToast('Role update was not applied (permission denied).', 'error')
     } else {
       setUsers(u => u.map(u => u.id === userId ? { ...u, role: newRole } : u))
       showToast('Role updated.')
@@ -232,11 +234,13 @@ function InvitesTab({ showToast }) {
     setLoading(false)
   }, [])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch on mount / dependency change
   useEffect(() => { fetchInvites() }, [fetchInvites])
 
   const generateCode = () => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-    return Array.from({ length: 8 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
+    const bytes = crypto.getRandomValues(new Uint8Array(8))
+    return Array.from(bytes, b => chars[b % chars.length]).join('') // 256 % 32 === 0, so no modulo bias
   }
 
   const handleCreate = async () => {
@@ -413,7 +417,7 @@ function InvitesTab({ showToast }) {
 
 // ── Audit Log Tab ────────────────────────────────────────────
 
-function AuditTab({ showToast }) {
+function AuditTab() {
   const [logs,    setLogs]    = useState([])
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState(null)
@@ -436,6 +440,7 @@ function AuditTab({ showToast }) {
     setLoading(false)
   }, [page])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch on mount / dependency change
   useEffect(() => { fetchLogs() }, [fetchLogs])
 
   return (
@@ -530,7 +535,8 @@ function ExportTab({ showToast }) {
     const body   = rows.map(row =>
       columns.map(col => {
         const val = row[col] ?? ''
-        const str = typeof val === 'object' ? JSON.stringify(val) : String(val)
+        let str = typeof val === 'object' ? JSON.stringify(val) : String(val)
+        if (/^[=+\-@\t\r]/.test(str)) str = `'${str}` // neutralise spreadsheet formulas
         return `"${str.replace(/"/g, '""')}"`
       }).join(',')
     ).join('\n')

@@ -14,8 +14,6 @@ import Toast from '../components/Toast'
 import { formatDate, isOverdue, daysUntil } from '../lib/dateUtils'
 import styles from './ManagerDashboard.module.css'
 
-const STATUS_OPTIONS = ['all', 'pending', 'in_progress', 'done', 'overdue']
-const STATUS_LABELS  = { all: 'All', pending: 'Pending', in_progress: 'In Progress', done: 'Done', overdue: 'Overdue' }
 const SORT_FIELDS    = { title: 'Title', assigned_to: 'Assignee', deadline: 'Deadline', status: 'Status', created_at: 'Created' }
 
 const EMPTY_TASK = {
@@ -92,6 +90,7 @@ function ManagerHome() {
     setLoading(false)
   }, [])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch on mount
   useEffect(() => { fetchData() }, [fetchData])
 
   // Realtime subscription
@@ -145,7 +144,7 @@ function ManagerHome() {
     else { setSortField(field); setSortDir('asc') }
   }
 
-  const SortIcon = ({ field }) => {
+  const renderSortIcon = (field) => {
     if (sortField !== field) return <span className={styles.sortNeutral}>↕</span>
     return <span className={styles.sortActive}>{sortDir === 'asc' ? '↑' : '↓'}</span>
   }
@@ -354,7 +353,7 @@ function ManagerHome() {
                     aria-sort={sortField === field ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
                     role="columnheader"
                   >
-                    {label} <SortIcon field={field} />
+                    {label} {renderSortIcon(field)}
                   </th>
                 ))}
                 <th className={styles.th}>Deadline</th>

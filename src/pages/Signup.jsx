@@ -6,7 +6,7 @@
 // If navigated here from Login with state.legacy === true, the legacy flow
 // is pre-selected and the username field is pre-filled.
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { z } from 'zod'
@@ -63,14 +63,6 @@ async function validateInviteCode(code) {
     body: JSON.stringify({ code }),
   })
   return res.json()
-}
-
-async function markInviteUsed(invite_id, user_id) {
-  await fetch(`${SUPABASE_URL}/functions/v1/mark-invite-used`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ invite_id, user_id }),
-  })
 }
 
 // ── Component ────────────────────────────────────────────────
@@ -159,7 +151,7 @@ export default function Signup() {
     const result = schema.safeParse(fields)
     if (!result.success) {
       const fieldErrors = {}
-      result.error.errors.forEach(err => { fieldErrors[err.path[0]] = err.message })
+      result.error.issues.forEach(err => { fieldErrors[err.path[0]] = err.message })
       setErrors(fieldErrors)
       return
     }
@@ -175,52 +167,69 @@ export default function Signup() {
     setLoading(false)
   }
 
+  // ── Sign-up helpers ────────────────────────────────────────
+  // The profile row (and the role from the invite code) is created server-side by the
+  // handle_new_user trigger from this metadata. The client never sets a role.
+  const signUpMetadata = (isLegacyUser) => ({
+    username:      fields.username.trim().toLowerCase(),
+    first_name:    fields.first_name.trim(),
+    middle_name:   fields.middle_name?.trim() || '',
+    last_name:     fields.last_name.trim(),
+    date_of_birth: fields.date_of_birth,
+    invite_code:   fields.invite_code.trim(),
+    is_legacy:     isLegacyUser,
+  })
+
+  const signUpErrorMessage = (error) => {
+    if (/already registered/i.test(error.message)) return 'An account with this email already exists.'
+    if (/database error/i.test(error.message)) {
+      return 'Could not create the account. The username may be taken, or the invite code is no longer valid.'
+    }
+    return error.message
+  }
+
+  const finishSignup = (data, isLegacyUser) => {
+    if (!data.session) {
+      // Email confirmation is enabled on the project
+      setFormSuccess('Account created. Check your email to confirm your address, then sign in.')
+      return
+    }
+    setFormSuccess(
+      isLegacyUser
+        ? 'Account created. You are being signed in.'
+        : 'Account created successfully. Redirecting to your dashboard.'
+    )
+    setTimeout(() => navigate('/dashboard', { replace: true }), 1500)
+  }
+
   // ── Standard signup ────────────────────────────────────────
   const handleStandardSignup = async () => {
     const { data, error } = await supabase.auth.signUp({
       email:    fields.email.trim().toLowerCase(),
       password: fields.password,
+      options:  { data: signUpMetadata(false) },
     })
 
-    if (error) {
-      if (error.message.includes('already registered')) {
-        setFormError('An account with this email already exists.')
-      } else {
-        setFormError(error.message)
-      }
-      return
-    }
+    if (error) { setFormError(signUpErrorMessage(error)); return }
+    if (!data.user?.id) { setFormError('Registration failed. Please try again.'); return }
 
-    const userId = data.user?.id
-    if (!userId) {
-      setFormError('Account created but user ID was not returned. Contact support.')
-      return
-    }
-
-    await insertProfile(userId)
+    finishSignup(data, false)
   }
 
   // ── Legacy signup ──────────────────────────────────────────
   const handleLegacySignup = async () => {
-    const username    = fields.username.trim().toLowerCase()
+    const username          = fields.username.trim().toLowerCase()
     const syntheticEmail    = `${username}@legacy.verlyntech.internal`
     const syntheticPassword = crypto.randomUUID()
 
     const { data, error } = await supabase.auth.signUp({
       email:    syntheticEmail,
       password: syntheticPassword,
+      options:  { data: signUpMetadata(true) },
     })
 
-    if (error) {
-      setFormError(error.message)
-      return
-    }
-
-    const userId = data.user?.id
-    if (!userId) {
-      setFormError('Registration failed. Please try again.')
-      return
-    }
+    if (error) { setFormError(signUpErrorMessage(error)); return }
+    if (!data.user?.id) { setFormError('Registration failed. Please try again.'); return }
 
     // Persist credentials locally so this device can re-authenticate
     localStorage.setItem(
@@ -228,48 +237,7 @@ export default function Signup() {
       JSON.stringify({ email: syntheticEmail, password: syntheticPassword })
     )
 
-    await insertProfile(userId, true)
-  }
-
-  // ── Shared profile insert ──────────────────────────────────
-  const insertProfile = async (userId, isLegacyUser = false) => {
-    const profileData = {
-      id:             userId,
-      username:       fields.username.trim().toLowerCase(),
-      first_name:     fields.first_name.trim(),
-      middle_name:    fields.middle_name?.trim() || null,
-      last_name:      fields.last_name.trim(),
-      date_of_birth:  fields.date_of_birth,
-      date_of_joining: new Date().toISOString().split('T')[0],
-      role:           resolvedRole,
-      is_legacy:      isLegacyUser,
-    }
-
-    const { error } = await supabase.from('profiles').insert(profileData)
-
-    if (error) {
-      if (error.message.includes('duplicate') || error.code === '23505') {
-        setFormError('This username is already taken. Please choose another.')
-      } else {
-        setFormError('Profile could not be created. ' + error.message)
-      }
-      // Roll back auth user to prevent orphaned accounts
-      await supabase.auth.signOut()
-      return
-    }
-
-    // Mark invite code as used
-    if (inviteResult?.invite_id) {
-      await markInviteUsed(inviteResult.invite_id, userId)
-    }
-
-    setFormSuccess(
-      isLegacyUser
-        ? 'Account created. You are being signed in.'
-        : 'Account created successfully. Redirecting to your dashboard.'
-    )
-
-    setTimeout(() => navigate('/dashboard', { replace: true }), 1500)
+    finishSignup(data, true)
   }
 
   // ── Role badge display ─────────────────────────────────────

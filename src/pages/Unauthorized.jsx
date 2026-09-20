@@ -11,7 +11,9 @@ export default function Unauthorized() {
     ? '/admin'
     : role === 'manager'
     ? '/manager'
-    : '/employee'
+    : role === 'employee'
+    ? '/employee'
+    : '/login'
 
   return (
     <div className={styles.page}>

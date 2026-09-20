@@ -5,9 +5,10 @@
 
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import styles from '../pages/ErrorPage.module.css'
 
 export default function ProtectedRoute({ children, requiredRole }) {
-  const { session, profile, loading } = useAuth()
+  const { session, profile, loading, signOut } = useAuth()
   const location = useLocation()
 
   if (loading) {
@@ -23,11 +24,18 @@ export default function ProtectedRoute({ children, requiredRole }) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  // Authenticated but profile not yet loaded
+  // Authenticated but the profile could not be loaded (loading is already false here)
   if (!profile) {
     return (
-      <div className="route-loading" aria-live="polite" aria-label="Loading profile">
-        <div className="route-loading__spinner" />
+      <div className={styles.page}>
+        <div className={styles.panel}>
+          <h1 className={styles.heading}>Could not load your profile</h1>
+          <p className={styles.body}>
+            You are signed in, but your account profile could not be loaded.
+            Sign out and try again, or contact your administrator.
+          </p>
+          <button className={styles.button} onClick={signOut}>Sign out</button>
+        </div>
       </div>
     )
   }
