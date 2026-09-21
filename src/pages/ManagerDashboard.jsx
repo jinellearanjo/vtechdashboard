@@ -632,7 +632,7 @@ function TeamView() {
     const fetch = async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, first_name, middle_name, last_name, username, role, date_of_joining, date_of_birth')
+        .select('id, first_name, middle_name, last_name, username, role, date_of_joining')
         .order('last_name')
       if (error) { setError(error.message) }
       else        { setMembers(data ?? []) }

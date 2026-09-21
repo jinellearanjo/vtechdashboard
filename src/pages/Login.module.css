@@ -165,6 +165,17 @@
   margin-bottom: var(--space-4);
 }
 
+/* Notice (e.g. account deleted) */
+.formNotice {
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--status-done-bg);
+  border: 1px solid var(--status-done-border);
+  border-radius: var(--card-radius);
+  color: var(--status-done-text);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-4);
+}
+
 /* Form */
 .form {
   display: flex;

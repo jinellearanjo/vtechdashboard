@@ -108,6 +108,34 @@ Applied on the hosted project with `supabase migration repair --status applied 2
   can edit, deleted messages can't change.
 - `messages`, `channels`, `channel_members` added to the realtime publication.
 
+### `20260920000700_profiles_avatars_account_deletion.sql`
+- `profiles.avatar_path` (must live under the person's own id) and a public `avatars` bucket (1 MB, JPEG/PNG/WebP; upload, read and delete
+  only inside your own folder). `get_directory` and `get_channel_members` now also return `avatar_path` (they were dropped and recreated).
+- `guard_profile_update` rewritten: people edit only their own details (admins can change other people's role and nothing else);
+  names are trimmed and required (max 50), usernames are 2-32 chars of `a-z 0-9 . _ -`, legacy usernames can't change,
+  date of birth can't be in the future.
+- Account deletion: `check_account_deletion()` (null = allowed, otherwise the reason) and `delete_my_account()`. Blocked while the person has
+  open tasks assigned to them, or is the only admin (also enforced by a `before delete` trigger on `profiles`, so the Supabase dashboard
+  can't orphan work either). Leaving deletes the auth user, which cascades to the profile and memberships; group chats are left properly
+  (ownership passes on, an empty group is archived).
+- Kept after deletion, anonymised (foreign keys are now `on delete set null`): messages ("Former user"), submitted documents, completed tasks
+  (a done task may have no assignee; the "exactly one assignee" check now reads `... or status = 'done'`), invite codes, task creators,
+  channel/team creators. The audit log keeps a "profile deleted" entry (username, no actor).
+- `write_audit` no longer fails when the actor's profile was just deleted, and no longer logs a spurious "redeemed" when `used_by` is nulled.
+  The task/document/channel/message guard triggers let referential actions through (`pg_trigger_depth() > 1`).
+
+### `20260920000800_signup_legacy_privacy.sql`
+- **Invite-only sign-up** (the Terms already said "invitation-only", but sign-up was actually open to anyone as a Contributor):
+  `app_settings.signup_requires_invite` (default true; switch in the SQL editor), `get_signup_config()` (callable signed-out, used by the
+  sign-up page), and `handle_new_user` now rejects sign-ups without a valid code.
+- **Profile-less lockout:** an auth user without a profile (e.g. someone who called the sign-up API directly with no metadata) could
+  previously read public channels and the directory. New `has_profile()` is required by the channel policies/helpers, `get_directory` and
+  `get_channel_overview`.
+- **Legacy cap:** legacy accounts can only be `employee` (trigger `guard_legacy_role` on insert / role change; the sign-up trigger rejects a
+  legacy sign-up with a manager or admin invite without consuming the invite).
+- **Private date of birth:** moved from `profiles` to `profile_private` (readable and writable only by its owner; managers and admins can't
+  read it); existing values were copied over and the column dropped. `handle_new_user` and `guard_profile_update` rewritten to match.
+
 ### SQL you ran by hand earlier in the session (before migrations)
 - Seed invite `MGRINVITE` (manager, 7 days). **Delete it:** `delete from public.invite_codes where code = 'MGRINVITE';`
 - Insert of your admin profile (`admin`, id `d5be9294-...`).
@@ -205,6 +233,45 @@ Applied on the hosted project with `supabase migration repair --status applied 2
 - New files: `src/pages/Chat.jsx`, `src/components/chat/*` (sidebar, thread, members panel, dialogs, helpers), `src/components/Modal.jsx`,
   `src/lib/chat.js`. Helpers (link splitting, grouping, ordering) are unit-tested; the UI was smoke-tested in jsdom against a fake Supabase.
 
+### Profile page (`/profile`)
+- Photo: upload / change / remove. Cropped to a centred square, resized to 256 px and re-encoded as JPEG in the browser (drops EXIF
+  such as GPS), uploaded to `avatars/<user id>/<random>.jpg`; the old file is deleted. Photos appear in the navbar, chat (messages, members,
+  pickers, DM list) and the Teams page; initials show when there is no photo or it fails to load.
+- Personal details: first/middle/last name, username (not for legacy accounts), date of birth; role, member-since and email read-only.
+- Change password (standard accounts): re-checks the current password first. Legacy accounts are told they have no password.
+- Delete account: dialog lists what is removed and kept, shows the blocking reason if any, requires typing your username and (standard accounts)
+  your password, removes your photo, deletes, clears the legacy `localStorage` credentials, signs out and lands on login with a notice.
+- New files: `src/pages/Profile.jsx`, `src/components/Avatar.jsx`, `src/lib/avatars.js`, `src/lib/profile.js`. Also: `AuthContext.refreshProfile`
+  keeps the current profile if a refetch fails; `Login` shows a notice passed in navigation state.
+
+### Legacy accounts, sign-up, privacy (round 6)
+- **Legacy login is now username + password.** Before: type a username, and the browser signed in with a random password kept in
+  `localStorage`, which meant that after signing out anyone at that computer could get back in by typing the username. Now
+  `Login` (legacy tab) asks for the password (synthetic email `<username>@legacy.verlyntech.internal`), `Signup` (legacy) has password fields
+  and no email and stores nothing in the browser, and legacy sign-up refuses manager/admin invites.
+- **Migration for old passwordless accounts:** `src/lib/legacy.js`. On a browser that still remembers one, leaving the password empty signs
+  in once and sends the user to `/profile` to **set a password** (no current password needed); the saved credential is then deleted. Home shows a
+  reminder until then. `VITE_ALLOW_DEVICE_LOGIN=false` switches this path off entirely.
+- **Sign-up page** asks the server whether an invite is required, marks the field, and blocks submitting without one; it also validates a
+  legacy invite's role from the fresh validation result (an earlier version of this check read stale React state; caught by a test).
+- **Profile:** date of birth loads from and saves to `profile_private` (optional, can be cleared); password section works for legacy accounts
+  and shows the "set a password" form for old passwordless ones; account deletion asks for the password unless the account is still on the old
+  device sign-in.
+- **Privacy Policy page** (`/privacy`, public) written to match what the app really does (what is collected, who can see what, providers,
+  browser storage, exactly what account deletion keeps and removes). Linked from login, sign-up, the navbar menu and the profile page.
+  It is a draft: have someone qualified review it. The contact address is `verlyntech@gmail.com` (change `CONTACT` in `Privacy.jsx`).
+- **Terms:** the paragraph on legacy accounts described the old device-bound login; rewritten to match. (Its contact address,
+  `admin@verlyntech.internal`, is not a real mailbox.)
+- `ManagerDashboard` and `AdminPanel` no longer select `date_of_birth`.
+
+### Housekeeping (round 6)
+- `README.md` replaced (features, roles, setup, configuration, migrations, Edge Functions, onboarding, deploying, troubleshooting).
+- `.env.example` and `supabase/.env.drive.example` (templates without secrets). Because `.gitignore` has `.env.*`, they need re-including:
+  `echo !.env.example>> .gitignore` and `echo !supabase/.env.drive.example>> .gitignore`.
+- `vercel.json`: Content-Security-Policy in two parts: a small enforced policy (`base-uri`, `object-src`, `frame-ancestors`, `form-action`) and
+  the full policy as `Content-Security-Policy-Report-Only`, so nothing can break the site; promote it after checking the browser console
+  (steps in the README). The built app was checked for external hosts: only Supabase (https and wss) is contacted.
+
 ### Submission review and Drive
 - `src/components/TaskDocuments.jsx` (+ CSS): now "Submissions". Status badge per file, reviewer note shown to the team on rejections,
   manager **Accept** (folder picker, "Accept and save to Drive") and **Reject** (required note) panels, "Open in Google Drive" link for
@@ -223,18 +290,22 @@ Applied on the hosted project with `supabase migration repair --status applied 2
 
 ## 7. What you still need to do
 1. Extract the final zip at the repo root.
-2. `supabase db push` (applies whichever of `...0300` to `...0600` are not applied yet).
+2. `supabase db push` (applies whichever of `...0300` to `...0800` are not applied yet).
 3. Delete the `[functions.mark-invite-used]` block at the end of `supabase/config.toml`.
 4. Add the two GitHub secrets for the keep-alive workflow.
 5. Delete the `MGRINVITE` invite; remove throwaway test accounts (Authentication, Users).
-6. Follow `docs/DRIVE_SETUP.md` (Google setup, secrets, `supabase functions deploy push-to-drive --use-api`).
-7. Commit and push.
+6. Sign-up is now invite-only: create Contributor invite codes in Admin > Invites before asking teammates to register.
+7. Re-include the env templates in git (see Housekeeping) and check for legacy accounts with manager/admin roles (README, Onboarding).
+8. Follow `docs/DRIVE_SETUP.md` (Google setup, secrets, `supabase functions deploy push-to-drive --use-api`).
+9. Commit and push.
 
 ## 8. Known gaps (not done)
-- Legacy login still keeps a plaintext synthetic password in `localStorage`.
-- Managers and admins can read `date_of_birth` of everyone.
+- Old passwordless legacy accounts can still sign in once from the browser that remembers them (then must set a password); set `VITE_ALLOW_DEVICE_LOGIN=false` once everyone has.
+- Profile photos live in a public bucket (random filenames, handed out only to signed-in users); anyone who has a URL can open it.
+- No email change and no "forgot password" email flow.
+- Photo cropping (canvas) is untested outside a real browser; the crop math is unit-tested, the rest was not run.
 - `validate-invite` is still unauthenticated and returns the role (rate-limited now).
-- No CSP header in `vercel.json`; README is still the Vite template; no `.env.example`.
+- The full CSP is report-only until you promote it (README, Deploying). The privacy policy is a draft for legal review.
 - No virus scanning of uploads; file type is checked by extension/declared type only.
 - Free tier: no automated backups; storage files are not in database backups; project pauses after 7 days idle
   (keep-alive workflow mitigates); GitHub disables scheduled workflows after about 60 days without repo activity.

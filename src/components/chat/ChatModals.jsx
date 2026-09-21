@@ -4,7 +4,8 @@
 import { useState } from 'react'
 import Modal from '../Modal'
 import { slugify } from '../../lib/chat'
-import { fullName, initials } from './chatUtils'
+import Avatar from '../Avatar'
+import { fullName } from './chatUtils'
 import styles from './Chat.module.css'
 
 function useSubmit(action, onDone) {
@@ -103,7 +104,7 @@ export function NewGroupModal({ people, me, onClose, onCreate }) {
               <li key={p.id}>
                 <label className={styles.pickItem}>
                   <input type="checkbox" checked={selected.has(p.id)} onChange={() => toggle(p.id)} />
-                  <span className={styles.avatar} aria-hidden="true">{initials(p)}</span>
+                  <Avatar person={p} size={28} />
                   <span>{fullName(p)}</span>
                   <span className={styles.pickRole}>{p.role}</span>
                 </label>
@@ -155,7 +156,7 @@ export function NewDmModal({ people, me, onClose, onPick }) {
           {list.map(p => (
             <li key={p.id}>
               <button type="button" className={styles.pickItem} onClick={() => pick(p)} disabled={busyId !== null}>
-                <span className={styles.avatar} aria-hidden="true">{initials(p)}</span>
+                <Avatar person={p} size={28} />
                 <span>{fullName(p)}</span>
                 <span className={styles.pickRole}>{busyId === p.id ? 'Opening…' : p.role}</span>
               </button>

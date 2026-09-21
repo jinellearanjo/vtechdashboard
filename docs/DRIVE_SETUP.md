@@ -83,7 +83,7 @@ The folder ID is the last part of the folder's URL: `https://drive.google.com/dr
 `DRIVE_ROOT_FOLDER_ID` from the original brief is not used.
 
 ## 4. Set the secrets (Windows cmd friendly)
-Pasting JSON into `supabase secrets set KEY={...}` breaks in cmd, so use a file. Create `supabase\.env.drive`
+Pasting JSON into `supabase secrets set KEY={...}` breaks in cmd, so use a file. Copy `supabase\.env.drive.example` to `supabase\.env.drive`, or create it
 (the `.env.*` pattern in `.gitignore` already keeps it out of git):
 
 ```

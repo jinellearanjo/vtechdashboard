@@ -58,11 +58,11 @@ export default function Terms() {
               administrator immediately upon suspecting unauthorised access.
             </p>
             <p>
-              Legacy accounts — those created without a password and authenticated
-              via device-local credentials — are tied to the device on which they
-              were created. You are responsible for the security of that device.
-              {COMPANY} bears no liability for access loss resulting from device
-              compromise or browser storage clearance.
+              Legacy accounts — accounts created without an email address — sign in
+              with a username and password and can only hold the Contributor role.
+              You are responsible for keeping that password private. Legacy
+              accounts cannot be recovered by email if the password is forgotten;
+              contact your administrator.
             </p>
           </section>
 

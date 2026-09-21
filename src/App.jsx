@@ -14,11 +14,13 @@ const Signup          = lazy(() => import('./pages/Signup'))
 const DashboardRouter = lazy(() => import('./pages/DashboardRouter'))
 const Home            = lazy(() => import('./pages/Home'))
 const Chat            = lazy(() => import('./pages/Chat'))
+const Profile         = lazy(() => import('./pages/Profile'))
 const ManagerDashboard  = lazy(() => import('./pages/ManagerDashboard'))
 const EmployeeDashboard = lazy(() => import('./pages/EmployeeDashboard'))
 const TaskDetail      = lazy(() => import('./pages/TaskDetail'))
 const AdminPanel      = lazy(() => import('./pages/AdminPanel'))
 const Terms           = lazy(() => import('./pages/Terms'))
+const Privacy         = lazy(() => import('./pages/Privacy'))
 const Unauthorized    = lazy(() => import('./pages/Unauthorized'))
 const NotFound        = lazy(() => import('./pages/NotFound'))
 
@@ -30,6 +32,7 @@ function AppRoutes() {
         <Route path="/login"  element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/terms"  element={<Terms />} />
+        <Route path="/privacy" element={<Privacy />} />
 
         {/* Root redirect */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -48,6 +51,7 @@ function AppRoutes() {
         <Route path="/home" element={<ProtectedRoute><Home /></ProtectedRoute>} />
         <Route path="/chat" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
         <Route path="/chat/:channelId" element={<ProtectedRoute><Chat /></ProtectedRoute>} />
+        <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
 
         {/* Manager routes */}
         <Route

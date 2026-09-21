@@ -84,7 +84,7 @@ function UsersTab({ showToast }) {
     setLoading(true)
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, first_name, middle_name, last_name, username, role, is_legacy, date_of_joining, date_of_birth')
+      .select('id, first_name, middle_name, last_name, username, role, is_legacy, date_of_joining')
       .order('last_name')
     if (error) setError(error.message)
     else       setUsers(data ?? [])

@@ -2,10 +2,11 @@
 // Channels (public), group chats (private) and direct messages, with unread badges.
 
 import { Link } from 'react-router-dom'
-import { conversationTitle, initials } from './chatUtils'
+import Avatar from '../Avatar'
+import { conversationTitle } from './chatUtils'
 import styles from './Chat.module.css'
 
-function Row({ channel, active, title, icon }) {
+function Row({ channel, active, title, icon, person }) {
   const unread = channel.unread_count
   return (
     <Link
@@ -13,7 +14,9 @@ function Row({ channel, active, title, icon }) {
       className={[styles.convo, active ? styles.convoActive : '', unread > 0 ? styles.convoUnread : ''].join(' ')}
       aria-current={active ? 'page' : undefined}
     >
-      <span className={styles.convoIcon} aria-hidden="true">{icon}</span>
+      {person !== undefined
+        ? <Avatar person={person} size={24} />
+        : <span className={styles.convoIcon} aria-hidden="true">{icon}</span>}
       <span className={styles.convoLabel}>{title}</span>
       {unread > 0 && (
         <span className={styles.unread} aria-label={`${unread} unread`}>{unread > 99 ? '99+' : unread}</span>
@@ -70,7 +73,7 @@ export default function ChannelSidebar({
         </div>
         {dms.length === 0 && <p className={styles.sidebarEmpty}>No conversations yet.</p>}
         {dms.map(c => (
-          <Row key={c.id} channel={c} active={c.id === activeId} title={titleOf(c)} icon={initials(directoryById.get(c.dm_user_id))} />
+          <Row key={c.id} channel={c} active={c.id === activeId} title={titleOf(c)} person={directoryById.get(c.dm_user_id) ?? null} />
         ))}
       </div>
 

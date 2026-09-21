@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import Toast from '../components/Toast'
+import Avatar from '../components/Avatar'
 import styles from './ManagerTeams.module.css'
 
 export default function ManagerTeams() {
@@ -28,12 +29,12 @@ export default function ManagerTeams() {
         .from('teams')
         .select(`
           id, name, created_at,
-          team_members(user_id, profile:profiles!team_members_user_id_fkey(id, first_name, last_name, role))
+          team_members(user_id, profile:profiles!team_members_user_id_fkey(id, first_name, last_name, role, avatar_path))
         `)
         .order('name'),
       supabase
         .from('profiles')
-        .select('id, first_name, last_name, role')
+        .select('id, first_name, last_name, role, avatar_path')
         .order('first_name'),
     ])
 
@@ -99,8 +100,6 @@ export default function ManagerTeams() {
     return run(() => supabase.from('teams').delete().eq('id', team.id), 'Team deleted.')
   }
 
-  const initials = (p) => `${p?.first_name?.[0] ?? ''}${p?.last_name?.[0] ?? ''}`
-
   return (
     <main className={styles.main}>
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
@@ -161,7 +160,7 @@ export default function ManagerTeams() {
                 <ul className={styles.members}>
                   {team.team_members.map(m => (
                     <li key={m.user_id} className={styles.member}>
-                      <span className={styles.avatar}>{initials(m.profile)}</span>
+                      <Avatar person={m.profile} size={28} />
                       <span className={styles.memberName}>
                         {m.profile ? `${m.profile.first_name} ${m.profile.last_name}` : 'Unknown user'}
                       </span>

@@ -7,7 +7,8 @@ import { supabase } from '../../lib/supabase'
 import {
   MAX_MESSAGE_LENGTH, PAGE_SIZE, fetchMessages, sendMessage, editMessage, deleteMessage,
 } from '../../lib/chat'
-import { fullName, initials, splitLinks, formatClock, groupMessages, upsertMessage } from './chatUtils'
+import Avatar from '../Avatar'
+import { fullName, splitLinks, formatClock, groupMessages, upsertMessage } from './chatUtils'
 import styles from './Chat.module.css'
 
 function MessageText({ text }) {
@@ -247,7 +248,7 @@ export default function MessageThread({
               <div key={item.key} className={`${styles.msg} ${item.compact ? styles.msgCompact : ''}`}>
                 {item.compact
                   ? <span className={styles.avatarSpacer} aria-hidden="true" />
-                  : <span className={styles.avatar} aria-hidden="true">{initials(sender)}</span>}
+                  : <Avatar person={sender} size={32} />}
 
                 <div className={styles.msgBody}>
                   {!item.compact && (

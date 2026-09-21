@@ -3,7 +3,8 @@
 
 import { useEffect, useState } from 'react'
 import { fetchChannelMembers, addGroupMembers, removeGroupMember } from '../../lib/chat'
-import { fullName, initials } from './chatUtils'
+import Avatar from '../Avatar'
+import { fullName } from './chatUtils'
 import styles from './Chat.module.css'
 
 export default function MembersPanel({ channel, me, directory, onClose, onChanged, onLeft, showToast }) {
@@ -79,7 +80,7 @@ export default function MembersPanel({ channel, me, directory, onClose, onChange
       <ul className={styles.memberList}>
         {members.map(m => (
           <li key={m.id} className={styles.member}>
-            <span className={styles.avatar} aria-hidden="true">{initials(m)}</span>
+            <Avatar person={m} size={28} />
             <span className={styles.memberName}>{fullName(m)}{m.id === me.id ? ' (you)' : ''}</span>
             {m.role === 'owner' && isGroup && <span className={styles.ownerTag}>owner</span>}
             {isOwner && m.id !== me.id && (

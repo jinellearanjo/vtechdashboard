@@ -1,0 +1,20 @@
+/* src/components/Avatar.module.css */
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-white);
+  background-color: var(--interactive-primary);
+  border-radius: 50%;
+  user-select: none;
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

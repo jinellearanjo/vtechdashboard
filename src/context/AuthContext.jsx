@@ -114,8 +114,8 @@ export function AuthProvider({ children }) {
 
   const refreshProfile = useCallback(async () => {
     if (!session?.user) return
-    const profile = await fetchProfileWithRetry(session.user.id)
-    setProfile(profile)
+    const fresh = await fetchProfileWithRetry(session.user.id)
+    if (fresh) setProfile(fresh) // on a failed refetch keep showing the current profile
   }, [session])
 
   const value = {

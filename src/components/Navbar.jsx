@@ -6,6 +6,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useUnreadTotal } from '../lib/chat'
+import Avatar from './Avatar'
 import styles from './Navbar.module.css'
 
 const ROLE_LABELS = {
@@ -177,9 +178,7 @@ export default function Navbar() {
               aria-expanded={dropdownOpen}
               aria-label="User menu"
             >
-              <span className={styles.avatar} aria-hidden="true">
-                {profile?.first_name?.[0]?.toUpperCase() ?? '?'}
-              </span>
+              <Avatar person={profile} size={26} />
               <span className={styles.userInfo}>
                 <span className={styles.userName}>
                   {profile?.first_name} {profile?.last_name}
@@ -239,6 +238,19 @@ export default function Navbar() {
                     <polyline points="14 2 14 8 20 8" />
                   </svg>
                   Terms of Service
+                </Link>
+
+                <Link
+                  to="/privacy"
+                  className={styles.dropdownItem}
+                  role="menuitem"
+                  onClick={() => setDropdownOpen(false)}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <rect x="3" y="11" width="18" height="11" rx="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  Privacy Policy
                 </Link>
 
                 <div className={styles.dropdownDivider} role="separator" />

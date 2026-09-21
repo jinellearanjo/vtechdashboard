@@ -3,9 +3,10 @@
 //   1. Standard — email + password via Supabase auth
 //   2. Legacy   — username only; credentials stored in localStorage
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { legacyEmail, getDeviceCredential, deviceLoginAllowed } from '../lib/legacy'
 import { z } from 'zod'
 import GridBackdrop from '../components/GridBackdrop'
 import styles from './Login.module.css'
@@ -30,6 +31,12 @@ export default function Login() {
   const [formError, setFormError] = useState(null)
   const [loading, setLoading] = useState(false)
   const [showPass, setShowPass] = useState(false)
+
+  // an old passwordless account remembered by this browser (see src/lib/legacy.js)
+  const deviceCred = useMemo(
+    () => (mode === 'legacy' && deviceLoginAllowed ? getDeviceCredential(fields.username) : null),
+    [mode, fields.username]
+  )
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -73,30 +80,34 @@ export default function Login() {
       return
     }
 
-    setLoading(true)
-    const username  = fields.username.trim().toLowerCase()
-    const storageKey = `vt-legacy-${username}`
-    const stored    = localStorage.getItem(storageKey)
+    const username = fields.username.trim().toLowerCase()
 
-    if (stored) {
-      // Returning legacy user — sign in with stored credentials
-      const { email, password } = JSON.parse(stored)
-      const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (fields.password) {
+      setLoading(true)
+      const { error } = await supabase.auth.signInWithPassword({ email: legacyEmail(username), password: fields.password })
       setLoading(false)
-
       if (error) {
-        setFormError('Legacy credentials not recognised. The account may have been removed.')
+        setFormError('Incorrect username or password. Please try again.')
         return
       }
       navigate(from, { replace: true })
-    } else {
-      // First-time legacy user — redirect to signup with legacy flag
-      setLoading(false)
-      navigate('/signup', {
-        state: { legacy: true, username },
-        replace: false,
-      })
+      return
     }
+
+    // Old passwordless account remembered by this browser: sign in once, then ask for a password
+    if (deviceCred) {
+      setLoading(true)
+      const { error } = await supabase.auth.signInWithPassword({ email: deviceCred.email, password: deviceCred.password })
+      setLoading(false)
+      if (error) {
+        setFormError("This device's saved sign-in no longer works. Enter your password instead.")
+        return
+      }
+      navigate('/profile', { replace: true, state: { setPassword: true } })
+      return
+    }
+
+    setErrors({ password: 'Enter your password' })
   }
 
   const handleSubmit = (e) => {
@@ -104,6 +115,57 @@ export default function Login() {
     if (mode === 'standard') handleStandardLogin()
     else handleLegacyLogin()
   }
+
+  const passwordField = (
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor="password">Password</label>
+        <div className={styles.passwordWrapper}>
+          <input
+            id="password"
+            name="password"
+            type={showPass ? 'text' : 'password'}
+            autoComplete="current-password"
+            className={`${styles.input} ${errors.password ? styles.inputError : ''}`}
+            value={fields.password}
+            onChange={handleChange}
+            placeholder="••••••••"
+            aria-describedby={errors.password ? 'password-error' : undefined}
+            aria-invalid={!!errors.password}
+            disabled={loading}
+          />
+          <button
+            type="button"
+            className={styles.showPass}
+            onClick={() => setShowPass(s => !s)}
+            aria-label={showPass ? 'Hide password' : 'Show password'}
+            tabIndex={0}
+          >
+            {showPass ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                <line x1="1" y1="1" x2="23" y2="23" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            )}
+          </button>
+        </div>
+        {errors.password && (
+          <span id="password-error" className={styles.fieldError} role="alert">{errors.password}</span>
+        )}
+        {mode === 'legacy' && (
+          <span id="legacy-pw-hint" className={styles.hint}>
+            {deviceCred
+              ? 'This device still remembers your old passwordless sign-in. Leave the password empty to sign in once, then set a password in your profile.'
+              : 'Legacy accounts use a username and password.'}
+          </span>
+        )}
+      </div>
+  )
 
   return (
     <div className={styles.page}>
@@ -130,7 +192,7 @@ export default function Login() {
         <p className={styles.subheading}>
           {mode === 'standard'
             ? 'Enter your credentials to access your workspace.'
-            : 'Enter your username to continue with legacy access.'}
+            : 'Sign in with your username and password.'}
         </p>
 
         {/* Mode tabs */}
@@ -152,6 +214,10 @@ export default function Login() {
             Legacy Access
           </button>
         </div>
+
+        {location.state?.notice && !formError && (
+          <div className={styles.formNotice} role="status">{location.state.notice}</div>
+        )}
 
         {/* Form error */}
         {formError && (
@@ -189,48 +255,6 @@ export default function Login() {
                   <span id="email-error" className={styles.fieldError} role="alert">{errors.email}</span>
                 )}
               </div>
-
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor="password">Password</label>
-                <div className={styles.passwordWrapper}>
-                  <input
-                    id="password"
-                    name="password"
-                    type={showPass ? 'text' : 'password'}
-                    autoComplete="current-password"
-                    className={`${styles.input} ${errors.password ? styles.inputError : ''}`}
-                    value={fields.password}
-                    onChange={handleChange}
-                    placeholder="••••••••"
-                    aria-describedby={errors.password ? 'password-error' : undefined}
-                    aria-invalid={!!errors.password}
-                    disabled={loading}
-                  />
-                  <button
-                    type="button"
-                    className={styles.showPass}
-                    onClick={() => setShowPass(s => !s)}
-                    aria-label={showPass ? 'Hide password' : 'Show password'}
-                    tabIndex={0}
-                  >
-                    {showPass ? (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-                        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-                        <line x1="1" y1="1" x2="23" y2="23" />
-                      </svg>
-                    ) : (
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                        <circle cx="12" cy="12" r="3" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
-                {errors.password && (
-                  <span id="password-error" className={styles.fieldError} role="alert">{errors.password}</span>
-                )}
-              </div>
             </>
           )}
 
@@ -247,18 +271,17 @@ export default function Login() {
                 value={fields.username}
                 onChange={handleChange}
                 placeholder="your.username"
-                aria-describedby={errors.username ? 'username-error' : 'legacy-hint'}
+                aria-describedby={errors.username ? 'username-error' : undefined}
                 aria-invalid={!!errors.username}
                 disabled={loading}
               />
               {errors.username && (
                 <span id="username-error" className={styles.fieldError} role="alert">{errors.username}</span>
               )}
-              <span id="legacy-hint" className={styles.hint}>
-                First-time legacy users will be directed to complete registration.
-              </span>
             </div>
           )}
+
+          {passwordField}
 
           <button
             type="submit"
@@ -274,8 +297,16 @@ export default function Login() {
           No account?{' '}
           <Link to="/signup">Create one</Link>
           {' · '}
-          <Link to="/terms">Terms of Service</Link>
+          <Link to="/terms">Terms</Link>
+          {' · '}
+          <Link to="/privacy">Privacy</Link>
         </p>
+        {mode === 'legacy' && (
+          <p className={styles.footer}>
+            New to legacy access?{' '}
+            <Link to="/signup" state={{ legacy: true, username: fields.username.trim().toLowerCase() }}>Create a legacy account</Link>
+          </p>
+        )}
       </div>
       </main>
     </div>

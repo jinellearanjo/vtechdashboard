@@ -6,9 +6,10 @@
 // If navigated here from Login with state.legacy === true, the legacy flow
 // is pre-selected and the username field is pre-filled.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { legacyEmail } from '../lib/legacy'
 import { z } from 'zod'
 import GridBackdrop from '../components/GridBackdrop'
 import styles from './Signup.module.css'
@@ -28,19 +29,25 @@ const baseSchema = z.object({
   invite_code:   z.string().optional().or(z.literal('')),
 })
 
-const standardSchema = baseSchema.extend({
-  email:    z.string().email('Enter a valid email address'),
-  password: z.string()
-              .min(8, 'Password must be at least 8 characters')
-              .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
-              .regex(/[0-9]/, 'Must contain at least one number'),
-  confirm_password: z.string().min(1, 'Please confirm your password'),
-}).refine(d => d.password === d.confirm_password, {
-  message: 'Passwords do not match',
-  path: ['confirm_password'],
-})
+const passwordRule = z.string()
+  .min(8, 'Password must be at least 8 characters')
+  .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
+  .regex(/[0-9]/, 'Must contain at least one number')
 
-const legacySchema = baseSchema
+const passwordsMatch = (d) => d.password === d.confirm_password
+const mismatch = { message: 'Passwords do not match', path: ['confirm_password'] }
+
+const standardSchema = baseSchema.extend({
+  email:            z.string().email('Enter a valid email address'),
+  password:         passwordRule,
+  confirm_password: z.string().min(1, 'Please confirm your password'),
+}).refine(passwordsMatch, mismatch)
+
+// Legacy accounts have no email, but they do have a password
+const legacySchema = baseSchema.extend({
+  password:         passwordRule,
+  confirm_password: z.string().min(1, 'Please confirm your password'),
+}).refine(passwordsMatch, mismatch)
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -65,6 +72,8 @@ async function validateInviteCode(code) {
   })
   return res.json()
 }
+
+const LEGACY_ROLE_MESSAGE = 'Legacy accounts can only be Contributors. Use an email account for manager or admin access.'
 
 // ── Component ────────────────────────────────────────────────
 
@@ -93,11 +102,20 @@ export default function Signup() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [inviteResult,  setInviteResult]  = useState(null) // { valid, role }
+  const [inviteRequired, setInviteRequired] = useState(true)    // until the server says otherwise
 
   // Infer role from invite code validation result, else employee
   const resolvedRole = inviteResult?.role ?? 'employee'
 
-  const strength = isLegacy ? null : getPasswordStrength(fields.password)
+  const strength = getPasswordStrength(fields.password)
+
+  useEffect(() => {
+    let active = true
+    supabase.rpc('get_signup_config').then(({ data }) => {
+      if (active && data) setInviteRequired(Boolean(data.invite_required))
+    })
+    return () => { active = false }
+  }, [])
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -124,6 +142,8 @@ export default function Signup() {
         server_error: 'Could not validate code. Please try again.',
       }
       setErrors(e => ({ ...e, invite_code: messages[result.reason] ?? 'Invalid code.' }))
+    } else if (isLegacy && result.role !== 'employee') {
+      setErrors(e => ({ ...e, invite_code: LEGACY_ROLE_MESSAGE }))
     } else {
       setErrors(e => ({ ...e, invite_code: undefined }))
     }
@@ -138,14 +158,24 @@ export default function Signup() {
       return
     }
 
-    // Validate invite code if provided
-    if (fields.invite_code.trim() && !inviteResult?.valid) {
-      const result = await validateInviteCode(fields.invite_code.trim())
-      setInviteResult(result)
-      if (!result.valid) {
+    if (inviteRequired && !fields.invite_code.trim()) {
+      setErrors(e => ({ ...e, invite_code: 'An invite code is required. Ask an administrator for one.' }))
+      return
+    }
+
+    // Validate invite code if provided (use the fresh result: state updates aren't visible until the next render)
+    let invite = inviteResult
+    if (fields.invite_code.trim() && !invite?.valid) {
+      invite = await validateInviteCode(fields.invite_code.trim())
+      setInviteResult(invite)
+      if (!invite.valid) {
         setErrors(e => ({ ...e, invite_code: 'Invalid or expired invite code.' }))
         return
       }
+    }
+    if (isLegacy && fields.invite_code.trim() && invite?.role && invite.role !== 'employee') {
+      setErrors(e => ({ ...e, invite_code: LEGACY_ROLE_MESSAGE }))
+      return
     }
 
     // Schema validation
@@ -219,25 +249,16 @@ export default function Signup() {
   }
 
   // ── Legacy signup ──────────────────────────────────────────
+  // No email: the account uses a synthetic address derived from the username, plus the password chosen here.
   const handleLegacySignup = async () => {
-    const username          = fields.username.trim().toLowerCase()
-    const syntheticEmail    = `${username}@legacy.verlyntech.internal`
-    const syntheticPassword = crypto.randomUUID()
-
     const { data, error } = await supabase.auth.signUp({
-      email:    syntheticEmail,
-      password: syntheticPassword,
+      email:    legacyEmail(fields.username),
+      password: fields.password,
       options:  { data: signUpMetadata(true) },
     })
 
     if (error) { setFormError(signUpErrorMessage(error)); return }
     if (!data.user?.id) { setFormError('Registration failed. Please try again.'); return }
-
-    // Persist credentials locally so this device can re-authenticate
-    localStorage.setItem(
-      `vt-legacy-${username}`,
-      JSON.stringify({ email: syntheticEmail, password: syntheticPassword })
-    )
 
     finishSignup(data, true)
   }
@@ -273,7 +294,7 @@ export default function Signup() {
         </h1>
         <p className={styles.subheading}>
           {isLegacy
-            ? 'Provide your details to finalise legacy access.'
+            ? 'Choose a password and provide your details to finish legacy access.'
             : 'All fields marked with * are required.'}
         </p>
 
@@ -285,7 +306,7 @@ export default function Signup() {
               <line x1="12" y1="16" x2="12" y2="12" />
               <line x1="12" y1="8" x2="12.01" y2="8" />
             </svg>
-            Legacy accounts are tied to this device. Clearing browser storage will require re-registration.
+            Legacy accounts have no email address: you sign in with your username and password, so keep your password safe. They can only be Contributors.
           </div>
         )}
 
@@ -395,12 +416,12 @@ export default function Signup() {
             </div>
           </fieldset>
 
-          {/* ── Section: Credentials (standard only) ── */}
-          {!isLegacy && (
+          {/* ── Section: Credentials ── */}
+          {(
             <fieldset className={styles.fieldset}>
               <legend className={styles.legend}>Credentials</legend>
 
-              <div className={styles.field}>
+              {!isLegacy && (<div className={styles.field}>
                 <label className={styles.label} htmlFor="email">Email address *</label>
                 <input
                   id="email" name="email" type="email"
@@ -412,7 +433,7 @@ export default function Signup() {
                   aria-describedby={errors.email ? 'email-error' : undefined}
                 />
                 {errors.email && <span id="email-error" className={styles.fieldError} role="alert">{errors.email}</span>}
-              </div>
+              </div>)}
 
               <div className={styles.row2}>
                 <div className={styles.field}>
@@ -489,14 +510,14 @@ export default function Signup() {
             <legend className={styles.legend}>Access</legend>
 
             <div className={styles.field}>
-              <label className={styles.label} htmlFor="invite_code">Invite code</label>
+              <label className={styles.label} htmlFor="invite_code">Invite code{inviteRequired ? ' *' : ''}</label>
               <div className={styles.inviteRow}>
                 <input
                   id="invite_code" name="invite_code" type="text"
                   className={`${styles.input} ${errors.invite_code ? styles.inputError : inviteResult?.valid ? styles.inputSuccess : ''}`}
                   value={fields.invite_code} onChange={handleChange}
                   onBlur={handleInviteBlur}
-                  placeholder="Optional — required for manager or admin access"
+                  placeholder={inviteRequired ? 'Enter the code an administrator gave you' : 'Optional — required for manager or admin access'}
                   disabled={loading}
                   style={{ textTransform: 'uppercase' }}
                   aria-describedby="invite-hint"
@@ -510,7 +531,9 @@ export default function Signup() {
               {errors.invite_code
                 ? <span className={styles.fieldError} role="alert">{errors.invite_code}</span>
                 : <span id="invite-hint" className={styles.hint}>
-                    Without a code, your account will be created as a Contributor.
+                    {inviteRequired
+                      ? 'Sign-up is by invitation. Ask an administrator for a code.'
+                      : 'Without a code, your account will be created as a Contributor.'}
                   </span>
               }
             </div>
@@ -530,6 +553,10 @@ export default function Signup() {
               I have read and agree to the{' '}
               <Link to="/terms" target="_blank" rel="noopener noreferrer">
                 Terms of Service
+              </Link>
+              {' '}and the{' '}
+              <Link to="/privacy" target="_blank" rel="noopener noreferrer">
+                Privacy Policy
               </Link>
             </label>
           </div>

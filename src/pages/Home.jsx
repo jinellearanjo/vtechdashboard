@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext'
 import Navbar from '../components/Navbar'
 import MonthCalendar from '../components/MonthCalendar'
 import { useUnreadTotal } from '../lib/chat'
+import { getDeviceCredential } from '../lib/legacy'
 import { fetchMyTasks, fetchAllTasks, countPendingReviews } from '../lib/tasks'
 import { summarizeTasks, upcomingTasks, taskTone, deadlineLabel, greetingFor, todayKey } from '../lib/calendar'
 import styles from './Home.module.css'
@@ -15,13 +16,15 @@ import styles from './Home.module.css'
 const STATUS_LABELS = { pending: 'Pending', in_progress: 'In progress', done: 'Done' }
 
 export default function Home() {
-  const { profile, isManager } = useAuth()
+  const { profile, isManager, isLegacy } = useAuth()
   const unread = useUnreadTotal()
 
   const [scope,   setScope]   = useState('mine')   // 'mine' | 'all' (managers/admins)
   const [tasks,   setTasks]   = useState(null)     // null = loading
   const [error,   setError]   = useState(null)
   const [pending, setPending] = useState(0)
+  // old passwordless legacy account still signing in from this browser
+  const [needsPassword] = useState(() => isLegacy && getDeviceCredential(profile.username) !== null)
 
   useEffect(() => {
     let active = true
@@ -89,8 +92,13 @@ export default function Home() {
 
         {error && <div className={styles.errorBanner} role="alert">Could not load tasks. {error}</div>}
 
-        {(unread > 0 || (isManager && pending > 0)) && (
+        {(needsPassword || unread > 0 || (isManager && pending > 0)) && (
           <div className={styles.notices}>
+            {needsPassword && (
+              <Link to="/profile" className={styles.notice}>
+                Set a password for your account so you can sign in anywhere <span aria-hidden="true">&rarr;</span>
+              </Link>
+            )}
             {unread > 0 && (
               <Link to="/chat" className={styles.notice}>
                 <strong>{unread}</strong> unread {unread === 1 ? 'message' : 'messages'} <span aria-hidden="true">&rarr;</span>
