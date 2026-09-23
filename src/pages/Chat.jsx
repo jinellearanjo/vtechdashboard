@@ -23,7 +23,7 @@ import styles from '../components/chat/Chat.module.css'
 export default function Chat() {
   const { channelId } = useParams()
   const navigate = useNavigate()
-  const { profile, isManager } = useAuth()
+  const { profile, isManager, isAdmin } = useAuth()
 
   const [overview,    setOverview]    = useState(null)  // null = loading
   const [directory,   setDirectory]   = useState([])
@@ -183,7 +183,7 @@ export default function Chat() {
         )}
       </div>
 
-      {modal === 'channel' && <NewChannelModal onClose={() => setModal(null)} onCreate={handleNewChannel} />}
+      {modal === 'channel' && <NewChannelModal onClose={() => setModal(null)} onCreate={handleNewChannel} isAdmin={isAdmin} />}
       {modal === 'group'   && <NewGroupModal people={directory} me={profile} onClose={() => setModal(null)} onCreate={handleNewGroup} />}
       {modal === 'dm'      && <NewDmModal people={directory} me={profile} onClose={() => setModal(null)} onPick={handleNewDm} />}
       {modal === 'edit' && active && <EditChannelModal channel={active} onClose={() => setModal(null)} onSave={handleSaveDetails} />}

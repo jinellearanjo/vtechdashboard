@@ -34,11 +34,12 @@ export default function ChannelSidebar({
   const titleOf = (c) => conversationTitle(c, directoryById)
   const byTitle = (a, b) => titleOf(a).localeCompare(titleOf(b))
 
-  const live      = channels.filter(c => !c.archived_at)
-  const publics   = live.filter(c => c.type === 'public').sort(byTitle)
-  const groups    = live.filter(c => c.type === 'private')       // already newest activity first
-  const dms       = live.filter(c => c.type === 'direct')
-  const archived  = channels.filter(c => c.archived_at).sort(byTitle)
+  const live       = channels.filter(c => !c.archived_at)
+  const openChans  = live.filter(c => c.type === 'public' && c.access === 'open').sort(byTitle)
+  const depChans   = live.filter(c => c.type === 'public' && c.access === 'department').sort(byTitle)
+  const groups     = live.filter(c => c.type === 'private')       // already newest activity first
+  const dms        = live.filter(c => c.type === 'direct')
+  const archived   = channels.filter(c => c.archived_at).sort(byTitle)
 
   return (
     <nav className={styles.sidebar} aria-label="Conversations">
@@ -49,11 +50,22 @@ export default function ChannelSidebar({
             <button type="button" className={styles.addBtn} onClick={onNewChannel} aria-label="Create a channel" title="Create a channel">+</button>
           )}
         </div>
-        {publics.length === 0 && <p className={styles.sidebarEmpty}>No channels yet.</p>}
-        {publics.map(c => (
+        {openChans.length === 0 && <p className={styles.sidebarEmpty}>No channels yet.</p>}
+        {openChans.map(c => (
           <Row key={c.id} channel={c} active={c.id === activeId} title={titleOf(c)} icon="#" />
         ))}
       </div>
+
+      {depChans.length > 0 && (
+        <div className={styles.section}>
+          <div className={styles.sectionHeader}>
+            <span>Departments</span>
+          </div>
+          {depChans.map(c => (
+            <Row key={c.id} channel={c} active={c.id === activeId} title={titleOf(c)} icon="\uD83D\uDD12" />
+          ))}
+        </div>
+      )}
 
       <div className={styles.section}>
         <div className={styles.sectionHeader}>

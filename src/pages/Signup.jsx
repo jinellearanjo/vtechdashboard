@@ -10,6 +10,8 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { legacyEmail } from '../lib/legacy'
+import Modal from '../components/Modal'
+import DepartmentPicker from '../components/DepartmentPicker'
 import { z } from 'zod'
 import GridBackdrop from '../components/GridBackdrop'
 import styles from './Signup.module.css'
@@ -97,6 +99,7 @@ export default function Signup() {
   const [errors,      setErrors]      = useState({})
   const [formError,   setFormError]   = useState(null)
   const [formSuccess, setFormSuccess] = useState(null)
+  const [showDepartments, setShowDepartments] = useState(false)
   const [loading,     setLoading]     = useState(false)
   const [showPass,    setShowPass]    = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -226,13 +229,12 @@ export default function Signup() {
       setFormSuccess('Account created. Check your email to confirm your address, then sign in.')
       return
     }
-    setFormSuccess(
-      isLegacyUser
-        ? 'Account created. You are being signed in.'
-        : 'Account created successfully. Redirecting to your dashboard.'
-    )
-    setTimeout(() => navigate('/dashboard', { replace: true }), 1500)
+    // A signed-in user can request department access straight away, before landing on the dashboard.
+    setFormSuccess(isLegacyUser ? 'Account created. You are being signed in.' : 'Account created successfully.')
+    setShowDepartments(true)
   }
+
+  const goToDashboard = () => navigate('/dashboard', { replace: true })
 
   // ── Standard signup ────────────────────────────────────────
   const handleStandardSignup = async () => {
@@ -577,6 +579,12 @@ export default function Signup() {
         </p>
       </div>
       </div>
+
+      {showDepartments && (
+        <Modal title="Request department access" onClose={goToDashboard} width={480}>
+          <DepartmentPicker onDone={goToDashboard} onSkip={goToDashboard} />
+        </Modal>
+      )}
     </div>
   )
 }

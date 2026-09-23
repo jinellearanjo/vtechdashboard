@@ -136,6 +136,22 @@ Applied on the hosted project with `supabase migration repair --status applied 2
 - **Private date of birth:** moved from `profiles` to `profile_private` (readable and writable only by its owner; managers and admins can't
   read it); existing values were copied over and the column dropped. `handle_new_user` and `guard_profile_update` rewritten to match.
 
+### `20260920000900_departments_and_chat_extras.sql`
+- **Departments:** `channels.access` ('open' | 'department'). The 7 existing channels (marketing, legal, technical, sales,
+  automations, finance, lead-gen) become departments; a new **General** open channel is added for everyone. Only administrators
+  are auto-joined to a department; everyone else must request access.
+- `department_access` (pending/approved/denied per person per department), capped at **3 pending+approved per person**
+  (enforced in a trigger, so it holds even for direct admin grants). RPCs: `list_departments` (every department with the
+  caller's status), `request_department_access`, `withdraw_department_access`, and admin-only `decide_department_access`,
+  `grant_department_access`, `revoke_department_access`. `sync_department_membership` keeps `channel_members` in sync with
+  approvals and with role changes (becoming/ceasing to be an admin adds/removes all 7).
+- Only administrators can create a department channel (managers can still create open ones); a channel's `access` is
+  immutable once created, like its name and type.
+- Audit: department decisions are logged (who, which department, from/to status).
+- **Chat attachments:** `messages.has_attachment`, `message_attachments` table, private `chat-files` bucket (same limits as
+  task documents), 5 files per message, only the sender can add them to their own message.
+- **Chat search:** `search_messages(query, limit)` (security invoker, so RLS still limits results to conversations you can read).
+
 ### SQL you ran by hand earlier in the session (before migrations)
 - Seed invite `MGRINVITE` (manager, 7 days). **Delete it:** `delete from public.invite_codes where code = 'MGRINVITE';`
 - Insert of your admin profile (`admin`, id `d5be9294-...`).
@@ -264,6 +280,18 @@ Applied on the hosted project with `supabase migration repair --status applied 2
   `admin@verlyntech.internal`, is not a real mailbox.)
 - `ManagerDashboard` and `AdminPanel` no longer select `date_of_birth`.
 
+### Departments (round 7)
+- Sign-up now ends with a **"Request department access"** dialog (`src/components/DepartmentPicker.jsx`): pick up to 3, or
+  skip. Also available any time from a new **Department access** card on the Profile page.
+- Admin panel has a new **Departments** tab: filter by pending/approved/denied, approve/deny/revoke, or grant access someone
+  was previously denied. New `src/lib/departments.js`.
+- Chat sidebar splits public channels into **Channels** (open, e.g. General) and **Departments** (only those you're approved
+  for show up — RLS hides the rest), with a lock icon. Creating a channel (managers) now has an admin-only "make this a
+  department" checkbox.
+- **Backend built but no UI wired up yet:** message attachments (`sendMessageWithFiles`, `fetchAttachments`,
+  `getAttachmentUrl` in `src/lib/chat.js`) and `searchMessages`. The database side is tested; there's no upload button, no
+  attachment display in the thread, and no search box. Tell me if you want either finished.
+
 ### Housekeeping (round 6)
 - `README.md` replaced (features, roles, setup, configuration, migrations, Edge Functions, onboarding, deploying, troubleshooting).
 - `.env.example` and `supabase/.env.drive.example` (templates without secrets). Because `.gitignore` has `.env.*`, they need re-including:
@@ -290,7 +318,7 @@ Applied on the hosted project with `supabase migration repair --status applied 2
 
 ## 7. What you still need to do
 1. Extract the final zip at the repo root.
-2. `supabase db push` (applies whichever of `...0300` to `...0800` are not applied yet).
+2. `supabase db push` (applies whichever of `...0300` to `...0900` are not applied yet).
 3. Delete the `[functions.mark-invite-used]` block at the end of `supabase/config.toml`.
 4. Add the two GitHub secrets for the keep-alive workflow.
 5. Delete the `MGRINVITE` invite; remove throwaway test accounts (Authentication, Users).
@@ -311,7 +339,7 @@ Applied on the hosted project with `supabase migration repair --status applied 2
   (keep-alive workflow mitigates); GitHub disables scheduled workflows after about 60 days without repo activity.
 - `supabase/.temp/` values remain in git history.
 - Drive push not tested end to end (needs your Google credentials); accepted files copied to Drive are not removed if the submission is later deleted.
-- Chat has no file attachments, threads, reactions, search or push notifications. A person added to a group can read its earlier history.
+- Chat has no threads, reactions or push notifications. Attachments and search have backend support (see "Departments (round 7)") but no UI. A person added to a group can read its earlier history.
 - Admins cannot read groups or DMs (by design); there is no admin override.
 - Messaging (Batch 6) is now built; the audit-log Edge Function was judged unnecessary.
 - Employees see one shared list for team tasks; there is no per-member completion tracking.

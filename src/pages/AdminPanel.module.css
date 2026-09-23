@@ -370,6 +370,20 @@
 .action_delete  { background-color: var(--status-overdue-bg);  color: var(--status-overdue-text); }
 .action_default { background-color: var(--surface-raised);     color: var(--text-muted); }
 
+.badge {
+  display: inline-block;
+  padding: 2px var(--space-2);
+  font-size: 11px;
+  font-weight: var(--font-weight-medium);
+  border: 1px solid transparent;
+  border-radius: var(--badge-radius);
+  text-transform: capitalize;
+}
+
+.badge_pending  { background-color: var(--status-review-bg);   color: var(--status-review-text);   border-color: var(--status-review-border); }
+.badge_approved { background-color: var(--status-done-bg);     color: var(--status-done-text);     border-color: var(--status-done-border); }
+.badge_denied   { background-color: var(--status-overdue-bg);  color: var(--status-overdue-text);  border-color: var(--status-overdue-border); }
+
 .delta {
   font-family: var(--font-mono);
   font-size: 11px;

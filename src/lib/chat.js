@@ -97,11 +97,11 @@ export async function removeGroupMember(channelId, userId) {
 }
 
 // Managers and admins only (RLS): public channels everyone joins automatically.
-export async function createPublicChannel({ name, title, description }, userId) {
+export async function createPublicChannel({ name, title, description, access = 'open' }, userId) {
   return unwrap(
     await supabase
       .from('channels')
-      .insert({ name, title, description: description || null, type: 'public', created_by: userId })
+      .insert({ name, title, description: description || null, type: 'public', access, created_by: userId })
       .select('id')
       .single()
   ).id
@@ -155,4 +155,54 @@ export function useUnreadTotal() {
   }, [userId])
 
   return total
+}
+
+// ── Attachments ──────────────────────────────────────────────
+const CHAT_BUCKET = 'chat-files'
+export const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+export const MAX_ATTACHMENTS_PER_MESSAGE = 5
+
+export async function sendMessageWithFiles(channelId, senderId, body, files) {
+  const { data: msg, error } = await supabase
+    .from('messages')
+    .insert({ channel_id: channelId, sender_id: senderId, body: body || '(attachment)', has_attachment: files.length > 0 })
+    .select('id, channel_id, sender_id, body, created_at, edited_at, deleted_at, has_attachment')
+    .single()
+  if (error) throw new Error(error.message)
+
+  const uploaded = []
+  for (const file of files) {
+    const path = `${channelId}/${crypto.randomUUID()}-${file.name.replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 100)}`
+    const { error: upErr } = await supabase.storage.from(CHAT_BUCKET).upload(path, file, { contentType: file.type || 'application/octet-stream' })
+    if (upErr) continue // best-effort: the message itself already sent
+    const { error: rowErr } = await supabase.from('message_attachments').insert({
+      message_id: msg.id, channel_id: channelId, storage_path: path,
+      filename: file.name.slice(0, 200), size_bytes: file.size, mime_type: file.type || 'application/octet-stream',
+    })
+    if (!rowErr) uploaded.push(path)
+  }
+  return msg
+}
+
+export async function fetchAttachments(messageId) {
+  const { data, error } = await supabase
+    .from('message_attachments')
+    .select('id, filename, size_bytes, storage_path')
+    .eq('message_id', messageId)
+    .order('created_at')
+  if (error) return []
+  return data ?? []
+}
+
+export async function getAttachmentUrl(path, filename) {
+  const { data, error } = await supabase.storage.from(CHAT_BUCKET).createSignedUrl(path, 60, { download: filename })
+  if (error) throw new Error(error.message)
+  return data.signedUrl
+}
+
+// ── Search ───────────────────────────────────────────────────
+export async function searchMessages(query) {
+  const { data, error } = await supabase.rpc('search_messages', { p_query: query, p_limit: 30 })
+  if (error) throw new Error(error.message)
+  return data ?? []
 }

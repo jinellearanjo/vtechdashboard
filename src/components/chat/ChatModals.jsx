@@ -27,13 +27,14 @@ function useSubmit(action, onDone) {
 }
 
 // ── New public channel ─────────────────────────────────────────
-export function NewChannelModal({ onClose, onCreate }) {
+export function NewChannelModal({ onClose, onCreate, isAdmin }) {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [isDepartment, setIsDepartment] = useState(false)
   const name = slugify(title)
 
   const { busy, error, submit } = useSubmit(
-    () => onCreate({ name, title: title.trim(), description: description.trim() }),
+    () => onCreate({ name, title: title.trim(), description: description.trim(), access: isDepartment ? 'department' : 'open' }),
     onClose
   )
 
@@ -51,6 +52,12 @@ export function NewChannelModal({ onClose, onCreate }) {
           <label className={styles.label} htmlFor="ch-desc">Description (optional)</label>
           <input id="ch-desc" className={styles.input} value={description} onChange={e => setDescription(e.target.value)} maxLength={200} />
         </div>
+        {isAdmin && (
+          <label className={styles.pickItem} style={{ border: '1px solid var(--border-default)', borderRadius: 'var(--input-radius)' }}>
+            <input type="checkbox" checked={isDepartment} onChange={e => setIsDepartment(e.target.checked)} />
+            <span>Make this a department (people must request and be approved to join)</span>
+          </label>
+        )}
         {error && <div className={styles.formError} role="alert">{error}</div>}
         <div className={styles.formActions}>
           <button type="button" className={styles.btn} onClick={onClose} disabled={busy}>Cancel</button>

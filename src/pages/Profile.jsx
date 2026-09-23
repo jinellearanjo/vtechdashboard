@@ -15,6 +15,7 @@ import {
   fetchBirthdate, saveBirthdate, setFirstPassword,
 } from '../lib/profile'
 import { getDeviceCredential, clearDeviceCredential } from '../lib/legacy'
+import DepartmentPicker from '../components/DepartmentPicker'
 import { formatDate } from '../lib/dateUtils'
 import styles from './Profile.module.css'
 
@@ -400,6 +401,19 @@ export default function Profile() {
               </button>
             </div>
           </form>
+        </section>
+
+        {/* Departments */}
+        <section className={styles.card} aria-labelledby="dept-heading">
+          <h2 id="dept-heading" className={styles.cardTitle}>Department access</h2>
+          <p className={styles.muted}>
+            Departments are restricted chats. Requests need approval from an administrator, up to 3 at a time.
+          </p>
+          <DepartmentPicker
+            onDone={() => showToast('Request sent.')}
+            onSkip={() => {}}
+            submitLabel="Request access"
+          />
         </section>
 
         {/* Danger zone */}

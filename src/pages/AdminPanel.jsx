@@ -9,13 +9,17 @@ import Navbar from '../components/Navbar'
 import SkeletonTable from '../components/SkeletonTable'
 import Toast from '../components/Toast'
 import { formatDate, formatDateTime } from '../lib/dateUtils'
+import {
+  fetchAllDepartmentAccess, decideDepartmentAccess, grantDepartmentAccess, revokeDepartmentAccess,
+} from '../lib/departments'
 import styles from './AdminPanel.module.css'
 
 const TABS = [
-  { key: 'users',   label: 'Users' },
-  { key: 'invites', label: 'Invite Codes' },
-  { key: 'audit',   label: 'Audit Log' },
-  { key: 'export',  label: 'Data Export' },
+  { key: 'users',       label: 'Users' },
+  { key: 'invites',     label: 'Invite Codes' },
+  { key: 'departments', label: 'Departments' },
+  { key: 'audit',       label: 'Audit Log' },
+  { key: 'export',      label: 'Data Export' },
 ]
 
 const ROLE_LABELS = {
@@ -61,8 +65,9 @@ export default function AdminPanel() {
         {/* Tab panels */}
         <div role="tabpanel" aria-label={TABS.find(t => t.key === tab)?.label}>
           {tab === 'users'   && <UsersTab   showToast={showToast} />}
-          {tab === 'invites' && <InvitesTab showToast={showToast} />}
-          {tab === 'audit'   && <AuditTab />}
+          {tab === 'invites'     && <InvitesTab     showToast={showToast} />}
+          {tab === 'departments' && <DepartmentsTab showToast={showToast} />}
+          {tab === 'audit'       && <AuditTab />}
           {tab === 'export'  && <ExportTab  showToast={showToast} />}
         </div>
       </main>
@@ -416,6 +421,130 @@ function InvitesTab({ showToast }) {
 }
 
 // ── Audit Log Tab ────────────────────────────────────────────
+
+function DepartmentsTab({ showToast }) {
+  const [rows,    setRows]    = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error,   setError]   = useState(null)
+  const [busyKey, setBusyKey] = useState(null)
+  const [filter,  setFilter]  = useState('pending')
+
+  const fmtName = (p) => p ? `${p.first_name} ${p.last_name}` : 'Former user'
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      setRows(await fetchAllDepartmentAccess())
+      setError(null)
+    } catch (e) {
+      setError(e.message)
+    }
+    setLoading(false)
+  }, [])
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- initial fetch on mount
+  useEffect(() => { load() }, [load])
+
+  const run = async (key, action, message) => {
+    setBusyKey(key)
+    try {
+      await action()
+      showToast(message)
+      await load()
+    } catch (e) {
+      showToast(e.message, 'error')
+    }
+    setBusyKey(null)
+  }
+
+  const visible = rows.filter(r => filter === 'all' || r.status === filter)
+
+  return (
+    <div>
+      <div className={styles.toolbar}>
+        <select className={styles.select} value={filter} onChange={e => setFilter(e.target.value)}>
+          <option value="pending">Pending</option>
+          <option value="approved">Approved</option>
+          <option value="denied">Denied</option>
+          <option value="all">All</option>
+        </select>
+      </div>
+
+      {error && <div className={styles.errorState} role="alert">{error}</div>}
+      {loading ? (
+        <SkeletonTable rows={4} cols={5} />
+      ) : visible.length === 0 ? (
+        <p className={styles.emptyState}>No {filter === 'all' ? '' : filter} requests.</p>
+      ) : (
+        <div className={styles.tableWrapper}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Person</th>
+                <th>Department</th>
+                <th>Status</th>
+                <th>Requested</th>
+                <th>Decided by</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map(r => {
+                const key = `${r.user_id}:${r.channel_id}`
+                const busy = busyKey === key
+                return (
+                  <tr key={key}>
+                    <td>{fmtName(r.user)}</td>
+                    <td>{r.channel?.title ?? r.channel?.name}</td>
+                    <td>
+                      <span className={`${styles.badge} ${styles[`badge_${r.status}`]}`}>{r.status}</span>
+                    </td>
+                    <td>{formatDateTime(r.requested_at)}</td>
+                    <td>{r.decider ? fmtName(r.decider) : '—'}</td>
+                    <td className={styles.actionsCell}>
+                      {r.status === 'pending' && (
+                        <>
+                          <button
+                            type="button" className={styles.linkBtn} disabled={busy}
+                            onClick={() => run(key, () => decideDepartmentAccess(r.user_id, r.channel_id, true), 'Approved.')}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            type="button" className={styles.linkBtnDanger} disabled={busy}
+                            onClick={() => run(key, () => decideDepartmentAccess(r.user_id, r.channel_id, false), 'Denied.')}
+                          >
+                            Deny
+                          </button>
+                        </>
+                      )}
+                      {r.status === 'approved' && (
+                        <button
+                          type="button" className={styles.linkBtnDanger} disabled={busy}
+                          onClick={() => run(key, () => revokeDepartmentAccess(r.user_id, r.channel_id), 'Access revoked.')}
+                        >
+                          Revoke
+                        </button>
+                      )}
+                      {r.status === 'denied' && (
+                        <button
+                          type="button" className={styles.linkBtn} disabled={busy}
+                          onClick={() => run(key, () => grantDepartmentAccess(r.user_id, r.channel_id), 'Access granted.')}
+                        >
+                          Grant anyway
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function AuditTab() {
   const [logs,    setLogs]    = useState([])
