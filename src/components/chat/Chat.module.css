@@ -572,6 +572,76 @@ label.pickItem { cursor: pointer; }
   color: var(--text-muted);
 }
 
+/* ── Reactions ─────────────────────────────────────────── */
+.reactionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.reactionPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--text-primary);
+  background-color: var(--interactive-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.reactionPill:hover:not(:disabled) { background-color: var(--interactive-secondary-hover); }
+.reactionPill:disabled { cursor: default; opacity: 0.8; }
+
+.reactionPillMine {
+  background-color: var(--interactive-primary);
+  color: var(--color-white);
+  border-color: transparent;
+}
+
+.reactAnchor { position: relative; display: inline-block; }
+
+.composerEmojiAnchor { position: relative; }
+
+/* ── Emoji picker ──────────────────────────────────────── */
+.emojiPopover {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  right: 0;
+  z-index: var(--z-raised);
+  padding: var(--space-2);
+  width: 220px;
+  background-color: var(--surface-card);
+  border: 1px solid var(--border-default);
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow-lg);
+}
+
+.emojiGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 2px;
+}
+
+.emojiBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  font-size: 18px;
+  line-height: 1;
+  background: none;
+  border: none;
+  border-radius: var(--input-radius);
+  cursor: pointer;
+}
+
+.emojiBtn:hover { background-color: var(--interactive-secondary); }
+
 /* ── Small screens: one pane at a time ────────────────── */
 @media (max-width: 960px) {
   .sidebar { width: 100%; border-right: none; }

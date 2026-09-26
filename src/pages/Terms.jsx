@@ -7,7 +7,7 @@ import styles from './Terms.module.css'
 
 const LAST_UPDATED = '2026-01-01'
 const COMPANY      = 'Verlyn Tech'
-const CONTACT      = 'admin@verlyntech.internal'
+const CONTACT      = 'verlyntech@gmail.com'
 
 export default function Terms() {
   return (

@@ -1,15 +1,9 @@
 // src/pages/Signup.jsx
-// Handles two registration flows:
-//   1. Standard — email + password + personal details + optional invite code
-//   2. Legacy   — username only (no credentials); synthetic auth handled transparently
-//
-// If navigated here from Login with state.legacy === true, the legacy flow
-// is pre-selected and the username field is pre-filled.
+// Registration: email + password + personal details + invite code (see the "Access" section).
 
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { legacyEmail } from '../lib/legacy'
 import Modal from '../components/Modal'
 import DepartmentPicker from '../components/DepartmentPicker'
 import { z } from 'zod'
@@ -18,38 +12,26 @@ import styles from './Signup.module.css'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 
-// ── Validation schemas ───────────────────────────────────────
-
-const baseSchema = z.object({
-  username:      z.string().min(2, 'Username must be at least 2 characters')
-                           .max(32, 'Username cannot exceed 32 characters')
-                           .regex(/^[a-z0-9._-]+$/, 'Only lowercase letters, numbers, dots, hyphens, underscores'),
-  first_name:    z.string().min(1, 'First name is required').max(50),
-  middle_name:   z.string().max(50).optional().or(z.literal('')),
-  last_name:     z.string().min(1, 'Last name is required').max(50),
-  date_of_birth: z.string().min(1, 'Date of birth is required'),
-  invite_code:   z.string().optional().or(z.literal('')),
-})
+// ── Validation schema ─────────────────────────────────────────
 
 const passwordRule = z.string()
   .min(8, 'Password must be at least 8 characters')
   .regex(/[A-Z]/, 'Must contain at least one uppercase letter')
   .regex(/[0-9]/, 'Must contain at least one number')
 
-const passwordsMatch = (d) => d.password === d.confirm_password
-const mismatch = { message: 'Passwords do not match', path: ['confirm_password'] }
-
-const standardSchema = baseSchema.extend({
+const schema = z.object({
+  username:         z.string().min(2, 'Username must be at least 2 characters')
+                              .max(32, 'Username cannot exceed 32 characters')
+                              .regex(/^[a-z0-9._-]+$/, 'Only lowercase letters, numbers, dots, hyphens, underscores'),
+  first_name:       z.string().min(1, 'First name is required').max(50),
+  middle_name:      z.string().max(50).optional().or(z.literal('')),
+  last_name:        z.string().min(1, 'Last name is required').max(50),
+  date_of_birth:    z.string().min(1, 'Date of birth is required'),
+  invite_code:      z.string().optional().or(z.literal('')),
   email:            z.string().email('Enter a valid email address'),
   password:         passwordRule,
   confirm_password: z.string().min(1, 'Please confirm your password'),
-}).refine(passwordsMatch, mismatch)
-
-// Legacy accounts have no email, but they do have a password
-const legacySchema = baseSchema.extend({
-  password:         passwordRule,
-  confirm_password: z.string().min(1, 'Please confirm your password'),
-}).refine(passwordsMatch, mismatch)
+}).refine(d => d.password === d.confirm_password, { message: 'Passwords do not match', path: ['confirm_password'] })
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -75,25 +57,14 @@ async function validateInviteCode(code) {
   return res.json()
 }
 
-const LEGACY_ROLE_MESSAGE = 'Legacy accounts can only be Contributors. Use an email account for manager or admin access.'
-
 // ── Component ────────────────────────────────────────────────
 
 export default function Signup() {
   const navigate = useNavigate()
-  const location = useLocation()
-  const isLegacy = location.state?.legacy === true
 
   const [fields, setFields] = useState({
-    username:         location.state?.username ?? '',
-    first_name:       '',
-    middle_name:      '',
-    last_name:        '',
-    date_of_birth:    '',
-    email:            '',
-    password:         '',
-    confirm_password: '',
-    invite_code:      '',
+    username: '', first_name: '', middle_name: '', last_name: '', date_of_birth: '',
+    email: '', password: '', confirm_password: '', invite_code: '',
   })
 
   const [errors,      setErrors]      = useState({})
@@ -105,11 +76,9 @@ export default function Signup() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [termsAccepted, setTermsAccepted] = useState(false)
   const [inviteResult,  setInviteResult]  = useState(null) // { valid, role }
-  const [inviteRequired, setInviteRequired] = useState(true)    // until the server says otherwise
+  const [inviteRequired, setInviteRequired] = useState(true) // until the server says otherwise
 
-  // Infer role from invite code validation result, else employee
   const resolvedRole = inviteResult?.role ?? 'employee'
-
   const strength = getPasswordStrength(fields.password)
 
   useEffect(() => {
@@ -128,7 +97,6 @@ export default function Signup() {
     if (name === 'invite_code') setInviteResult(null)
   }
 
-  // Validate invite code on blur
   const handleInviteBlur = async () => {
     const code = fields.invite_code.trim()
     if (!code) { setInviteResult(null); return }
@@ -145,12 +113,20 @@ export default function Signup() {
         server_error: 'Could not validate code. Please try again.',
       }
       setErrors(e => ({ ...e, invite_code: messages[result.reason] ?? 'Invalid code.' }))
-    } else if (isLegacy && result.role !== 'employee') {
-      setErrors(e => ({ ...e, invite_code: LEGACY_ROLE_MESSAGE }))
     } else {
       setErrors(e => ({ ...e, invite_code: undefined }))
     }
   }
+
+  const signUpErrorMessage = (error) => {
+    if (/already registered/i.test(error.message)) return 'An account with this email already exists.'
+    if (/database error/i.test(error.message)) {
+      return 'Could not create the account. The username may be taken, or the invite code is no longer valid.'
+    }
+    return error.message
+  }
+
+  const goToDashboard = () => navigate('/dashboard', { replace: true })
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -166,7 +142,7 @@ export default function Signup() {
       return
     }
 
-    // Validate invite code if provided (use the fresh result: state updates aren't visible until the next render)
+    // Validate the invite code if provided (use the fresh result: state updates aren't visible until the next render)
     let invite = inviteResult
     if (fields.invite_code.trim() && !invite?.valid) {
       invite = await validateInviteCode(fields.invite_code.trim())
@@ -176,13 +152,7 @@ export default function Signup() {
         return
       }
     }
-    if (isLegacy && fields.invite_code.trim() && invite?.role && invite.role !== 'employee') {
-      setErrors(e => ({ ...e, invite_code: LEGACY_ROLE_MESSAGE }))
-      return
-    }
 
-    // Schema validation
-    const schema = isLegacy ? legacySchema : standardSchema
     const result = schema.safeParse(fields)
     if (!result.success) {
       const fieldErrors = {}
@@ -193,76 +163,34 @@ export default function Signup() {
 
     setLoading(true)
 
-    if (isLegacy) {
-      await handleLegacySignup()
-    } else {
-      await handleStandardSignup()
-    }
+    const { data, error } = await supabase.auth.signUp({
+      email:    fields.email.trim().toLowerCase(),
+      password: fields.password,
+      options: {
+        data: {
+          username:      fields.username.trim().toLowerCase(),
+          first_name:    fields.first_name.trim(),
+          middle_name:   fields.middle_name?.trim() || '',
+          last_name:     fields.last_name.trim(),
+          date_of_birth: fields.date_of_birth,
+          invite_code:   fields.invite_code.trim(),
+        },
+      },
+    })
 
     setLoading(false)
-  }
 
-  // ── Sign-up helpers ────────────────────────────────────────
-  // The profile row (and the role from the invite code) is created server-side by the
-  // handle_new_user trigger from this metadata. The client never sets a role.
-  const signUpMetadata = (isLegacyUser) => ({
-    username:      fields.username.trim().toLowerCase(),
-    first_name:    fields.first_name.trim(),
-    middle_name:   fields.middle_name?.trim() || '',
-    last_name:     fields.last_name.trim(),
-    date_of_birth: fields.date_of_birth,
-    invite_code:   fields.invite_code.trim(),
-    is_legacy:     isLegacyUser,
-  })
+    if (error) { setFormError(signUpErrorMessage(error)); return }
+    if (!data.user?.id) { setFormError('Registration failed. Please try again.'); return }
 
-  const signUpErrorMessage = (error) => {
-    if (/already registered/i.test(error.message)) return 'An account with this email already exists.'
-    if (/database error/i.test(error.message)) {
-      return 'Could not create the account. The username may be taken, or the invite code is no longer valid.'
-    }
-    return error.message
-  }
-
-  const finishSignup = (data, isLegacyUser) => {
     if (!data.session) {
       // Email confirmation is enabled on the project
       setFormSuccess('Account created. Check your email to confirm your address, then sign in.')
       return
     }
-    // A signed-in user can request department access straight away, before landing on the dashboard.
-    setFormSuccess(isLegacyUser ? 'Account created. You are being signed in.' : 'Account created successfully.')
+    // Signed in already: request department access before landing on the dashboard.
+    setFormSuccess('Account created successfully.')
     setShowDepartments(true)
-  }
-
-  const goToDashboard = () => navigate('/dashboard', { replace: true })
-
-  // ── Standard signup ────────────────────────────────────────
-  const handleStandardSignup = async () => {
-    const { data, error } = await supabase.auth.signUp({
-      email:    fields.email.trim().toLowerCase(),
-      password: fields.password,
-      options:  { data: signUpMetadata(false) },
-    })
-
-    if (error) { setFormError(signUpErrorMessage(error)); return }
-    if (!data.user?.id) { setFormError('Registration failed. Please try again.'); return }
-
-    finishSignup(data, false)
-  }
-
-  // ── Legacy signup ──────────────────────────────────────────
-  // No email: the account uses a synthetic address derived from the username, plus the password chosen here.
-  const handleLegacySignup = async () => {
-    const { data, error } = await supabase.auth.signUp({
-      email:    legacyEmail(fields.username),
-      password: fields.password,
-      options:  { data: signUpMetadata(true) },
-    })
-
-    if (error) { setFormError(signUpErrorMessage(error)); return }
-    if (!data.user?.id) { setFormError('Registration failed. Please try again.'); return }
-
-    finishSignup(data, true)
   }
 
   // ── Role badge display ─────────────────────────────────────
@@ -291,26 +219,8 @@ export default function Signup() {
 
       <div className={styles.panel}>
 
-        <h1 className={styles.heading}>
-          {isLegacy ? 'Complete registration' : 'Create an account'}
-        </h1>
-        <p className={styles.subheading}>
-          {isLegacy
-            ? 'Choose a password and provide your details to finish legacy access.'
-            : 'All fields marked with * are required.'}
-        </p>
-
-        {/* Legacy notice */}
-        {isLegacy && (
-          <div className={styles.noticeInfo} role="note">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" />
-              <line x1="12" y1="16" x2="12" y2="12" />
-              <line x1="12" y1="8" x2="12.01" y2="8" />
-            </svg>
-            Legacy accounts have no email address: you sign in with your username and password, so keep your password safe. They can only be Contributors.
-          </div>
-        )}
+        <h1 className={styles.heading}>Create an account</h1>
+        <p className={styles.subheading}>All fields marked with * are required.</p>
 
         {/* Form error */}
         {formError && (
@@ -406,7 +316,7 @@ export default function Signup() {
                   className={`${styles.input} ${errors.username ? styles.inputError : ''}`}
                   value={fields.username} onChange={handleChange}
                   placeholder="e.g. j.smith"
-                  disabled={loading || (isLegacy && !!location.state?.username)}
+                  disabled={loading}
                   aria-invalid={!!errors.username}
                   aria-describedby={errors.username ? 'username-error' : 'username-hint'}
                 />
@@ -419,93 +329,91 @@ export default function Signup() {
           </fieldset>
 
           {/* ── Section: Credentials ── */}
-          {(
-            <fieldset className={styles.fieldset}>
-              <legend className={styles.legend}>Credentials</legend>
+          <fieldset className={styles.fieldset}>
+            <legend className={styles.legend}>Credentials</legend>
 
-              {!isLegacy && (<div className={styles.field}>
-                <label className={styles.label} htmlFor="email">Email address *</label>
-                <input
-                  id="email" name="email" type="email"
-                  autoComplete="email"
-                  className={`${styles.input} ${errors.email ? styles.inputError : ''}`}
-                  value={fields.email} onChange={handleChange}
-                  placeholder="you@verlyntech.com" disabled={loading}
-                  aria-invalid={!!errors.email}
-                  aria-describedby={errors.email ? 'email-error' : undefined}
-                />
-                {errors.email && <span id="email-error" className={styles.fieldError} role="alert">{errors.email}</span>}
-              </div>)}
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor="email">Email address *</label>
+              <input
+                id="email" name="email" type="email"
+                autoComplete="email"
+                className={`${styles.input} ${errors.email ? styles.inputError : ''}`}
+                value={fields.email} onChange={handleChange}
+                placeholder="you@verlyntech.com" disabled={loading}
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? 'email-error' : undefined}
+              />
+              {errors.email && <span id="email-error" className={styles.fieldError} role="alert">{errors.email}</span>}
+            </div>
 
-              <div className={styles.row2}>
-                <div className={styles.field}>
-                  <label className={styles.label} htmlFor="password">Password *</label>
-                  <div className={styles.passwordWrapper}>
-                    <input
-                      id="password" name="password"
-                      type={showPass ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      className={`${styles.input} ${errors.password ? styles.inputError : ''}`}
-                      value={fields.password} onChange={handleChange}
-                      placeholder="Min. 8 characters" disabled={loading}
-                      aria-invalid={!!errors.password}
-                      aria-describedby="password-strength"
-                    />
-                    <button type="button" className={styles.showPass}
-                      onClick={() => setShowPass(s => !s)}
-                      aria-label={showPass ? 'Hide password' : 'Show password'}>
-                      {showPass
-                        ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                        : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                      }
-                    </button>
-                  </div>
-                  {/* Password strength meter */}
-                  {fields.password && (
-                    <div id="password-strength" className={styles.strengthRow} aria-live="polite">
-                      <div className={styles.strengthBar}>
-                        {[1,2,3,4,5].map(i => (
-                          <div
-                            key={i}
-                            className={styles.strengthSegment}
-                            style={{ backgroundColor: i <= strength.score ? strength.color : 'var(--border-default)' }}
-                          />
-                        ))}
-                      </div>
-                      <span className={styles.strengthLabel} style={{ color: strength.color }}>
-                        {strength.label}
-                      </span>
+            <div className={styles.row2}>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="password">Password *</label>
+                <div className={styles.passwordWrapper}>
+                  <input
+                    id="password" name="password"
+                    type={showPass ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    className={`${styles.input} ${errors.password ? styles.inputError : ''}`}
+                    value={fields.password} onChange={handleChange}
+                    placeholder="Min. 8 characters" disabled={loading}
+                    aria-invalid={!!errors.password}
+                    aria-describedby="password-strength"
+                  />
+                  <button type="button" className={styles.showPass}
+                    onClick={() => setShowPass(s => !s)}
+                    aria-label={showPass ? 'Hide password' : 'Show password'}>
+                    {showPass
+                      ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    }
+                  </button>
+                </div>
+                {/* Password strength meter */}
+                {fields.password && (
+                  <div id="password-strength" className={styles.strengthRow} aria-live="polite">
+                    <div className={styles.strengthBar}>
+                      {[1,2,3,4,5].map(i => (
+                        <div
+                          key={i}
+                          className={styles.strengthSegment}
+                          style={{ backgroundColor: i <= strength.score ? strength.color : 'var(--border-default)' }}
+                        />
+                      ))}
                     </div>
-                  )}
-                  {errors.password && <span className={styles.fieldError} role="alert">{errors.password}</span>}
-                </div>
-
-                <div className={styles.field}>
-                  <label className={styles.label} htmlFor="confirm_password">Confirm password *</label>
-                  <div className={styles.passwordWrapper}>
-                    <input
-                      id="confirm_password" name="confirm_password"
-                      type={showConfirm ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      className={`${styles.input} ${errors.confirm_password ? styles.inputError : ''}`}
-                      value={fields.confirm_password} onChange={handleChange}
-                      placeholder="Repeat password" disabled={loading}
-                      aria-invalid={!!errors.confirm_password}
-                    />
-                    <button type="button" className={styles.showPass}
-                      onClick={() => setShowConfirm(s => !s)}
-                      aria-label={showConfirm ? 'Hide password' : 'Show password'}>
-                      {showConfirm
-                        ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                        : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                      }
-                    </button>
+                    <span className={styles.strengthLabel} style={{ color: strength.color }}>
+                      {strength.label}
+                    </span>
                   </div>
-                  {errors.confirm_password && <span className={styles.fieldError} role="alert">{errors.confirm_password}</span>}
-                </div>
+                )}
+                {errors.password && <span className={styles.fieldError} role="alert">{errors.password}</span>}
               </div>
-            </fieldset>
-          )}
+
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="confirm_password">Confirm password *</label>
+                <div className={styles.passwordWrapper}>
+                  <input
+                    id="confirm_password" name="confirm_password"
+                    type={showConfirm ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    className={`${styles.input} ${errors.confirm_password ? styles.inputError : ''}`}
+                    value={fields.confirm_password} onChange={handleChange}
+                    placeholder="Repeat password" disabled={loading}
+                    aria-invalid={!!errors.confirm_password}
+                  />
+                  <button type="button" className={styles.showPass}
+                    onClick={() => setShowConfirm(s => !s)}
+                    aria-label={showConfirm ? 'Hide password' : 'Show password'}>
+                    {showConfirm
+                      ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                      : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    }
+                  </button>
+                </div>
+                {errors.confirm_password && <span className={styles.fieldError} role="alert">{errors.confirm_password}</span>}
+              </div>
+            </div>
+          </fieldset>
 
           {/* ── Section: Access ── */}
           <fieldset className={styles.fieldset}>

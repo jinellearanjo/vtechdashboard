@@ -206,3 +206,29 @@ export async function searchMessages(query) {
   if (error) throw new Error(error.message)
   return data ?? []
 }
+
+// ── Reactions ────────────────────────────────────────────────
+
+export async function fetchReactions(messageIds) {
+  if (!messageIds.length) return []
+  const { data, error } = await supabase
+    .from('message_reactions')
+    .select('message_id, user_id, emoji')
+    .in('message_id', messageIds)
+  if (error) return []
+  return data ?? []
+}
+
+export async function addReaction(messageId, userId, emoji) {
+  const { error } = await supabase.from('message_reactions').insert({ message_id: messageId, user_id: userId, emoji })
+  // a duplicate (already reacted with this emoji) is not an error the user needs to see
+  if (error && error.code !== '23505') throw new Error(error.message)
+}
+
+export async function removeReaction(messageId, userId, emoji) {
+  const { error } = await supabase
+    .from('message_reactions')
+    .delete()
+    .eq('message_id', messageId).eq('user_id', userId).eq('emoji', emoji)
+  if (error) throw new Error(error.message)
+}

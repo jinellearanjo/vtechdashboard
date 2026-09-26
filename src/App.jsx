@@ -11,6 +11,8 @@ import PageLoader from './components/PageLoader'
 // Lazy-loaded pages for code splitting
 const Login           = lazy(() => import('./pages/Login'))
 const Signup          = lazy(() => import('./pages/Signup'))
+const ForgotPassword  = lazy(() => import('./pages/ForgotPassword'))
+const ResetPassword   = lazy(() => import('./pages/ResetPassword'))
 const DashboardRouter = lazy(() => import('./pages/DashboardRouter'))
 const Home            = lazy(() => import('./pages/Home'))
 const Chat            = lazy(() => import('./pages/Chat'))
@@ -31,6 +33,8 @@ function AppRoutes() {
         {/* Public routes */}
         <Route path="/login"  element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password"  element={<ResetPassword />} />
         <Route path="/terms"  element={<Terms />} />
         <Route path="/privacy" element={<Privacy />} />
 

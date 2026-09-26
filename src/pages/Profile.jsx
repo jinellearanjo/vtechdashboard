@@ -12,9 +12,8 @@ import Toast from '../components/Toast'
 import { AVATAR_ACCEPT, prepareAvatar, uploadAvatar, removeAvatar } from '../lib/avatars'
 import {
   updateDetails, changePassword, checkAccountDeletion, verifyPassword, deleteAccount,
-  fetchBirthdate, saveBirthdate, setFirstPassword,
+  fetchBirthdate, saveBirthdate,
 } from '../lib/profile'
-import { getDeviceCredential, clearDeviceCredential } from '../lib/legacy'
 import DepartmentPicker from '../components/DepartmentPicker'
 import { formatDate } from '../lib/dateUtils'
 import styles from './Profile.module.css'
@@ -40,11 +39,6 @@ const passwordSchema = z.object({
     .min(8, 'At least 8 characters')
     .regex(/[A-Z]/, 'Needs an uppercase letter')
     .regex(/[0-9]/, 'Needs a number'),
-  confirm: z.string().min(1, 'Confirm the new password'),
-}).refine(d => d.next === d.confirm, { message: 'Passwords do not match', path: ['confirm'] })
-
-const firstPasswordSchema = z.object({
-  next:    passwordSchema.shape.next,
   confirm: z.string().min(1, 'Confirm the new password'),
 }).refine(d => d.next === d.confirm, { message: 'Passwords do not match', path: ['confirm'] })
 
@@ -147,7 +141,7 @@ function DeleteAccountModal({ profile, email, askPassword, onClose, onDeleted })
 
 // ── Page ───────────────────────────────────────────────────────
 export default function Profile() {
-  const { profile, session, isLegacy, role, refreshProfile, signOut } = useAuth()
+  const { profile, session, role, refreshProfile, signOut } = useAuth()
   const navigate = useNavigate()
   const fileRef  = useRef(null)
   const email    = session?.user?.email ?? ''
@@ -184,9 +178,6 @@ export default function Profile() {
       .catch(() => { if (active) setBirthdate('') })
     return () => { active = false }
   }, [profile.id])
-
-  // An old passwordless legacy account still keeps a sign-in in this browser until it gets a password
-  const [hasDeviceLogin, setHasDeviceLogin] = useState(() => isLegacy && getDeviceCredential(profile.username) !== null)
 
   // password
   const [pw,       setPw]       = useState({ current: '', next: '', confirm: '' })
@@ -242,8 +233,7 @@ export default function Profile() {
         first_name:    v.first_name,
         middle_name:   v.middle_name || null,
         last_name:     v.last_name,
-        // legacy accounts sign in with their username, so it stays fixed
-        ...(!isLegacy && v.username !== profile.username ? { username: v.username } : {}),
+        ...(v.username !== profile.username ? { username: v.username } : {}),
       })
       if (v.date_of_birth !== (birthdate ?? '')) {
         await saveBirthdate(profile.id, v.date_of_birth)
@@ -265,20 +255,13 @@ export default function Profile() {
 
   const handleSavePassword = async (e) => {
     e.preventDefault()
-    const result = (hasDeviceLogin ? firstPasswordSchema : passwordSchema).safeParse(pw)
+    const result = passwordSchema.safeParse(pw)
     if (!result.success) { setPwErrors(issuesToErrors(result.error)); return }
 
     setPwBusy(true)
     try {
-      if (hasDeviceLogin) {
-        await setFirstPassword(pw.next)
-        clearDeviceCredential(profile.username)   // the old passwordless sign-in stops working on this device
-        setHasDeviceLogin(false)
-        showToast('Password set. Use it to sign in from now on.')
-      } else {
-        await changePassword(email, pw.current, pw.next)
-        showToast('Password changed.')
-      }
+      await changePassword(email, pw.current, pw.next)
+      showToast('Password changed.')
       setPw({ current: '', next: '', confirm: '' })
     } catch (err) {
       showToast(err.message, 'error')
@@ -287,7 +270,6 @@ export default function Profile() {
   }
 
   const handleDeleted = async () => {
-    clearDeviceCredential(profile.username)
     await signOut()
     navigate('/login', { replace: true, state: { notice: 'Your account has been deleted.' } })
   }
@@ -346,16 +328,15 @@ export default function Profile() {
               {field('last_name', 'Last name', { autoComplete: 'family-name' })}
             </div>
             <div className={styles.row2}>
-              {field('username', 'Username', isLegacy ? { disabled: true } : { autoComplete: 'username' })}
+              {field('username', 'Username', { autoComplete: 'username' })}
               {field('date_of_birth', 'Date of birth', { type: 'date', max: todayIso(), disabled: saving || birthdate === null })}
             </div>
-            {isLegacy && <p className={styles.hint}>Legacy accounts sign in with their username, so it can&rsquo;t be changed.</p>}
             <p className={styles.hint}>Your date of birth is private: only you can see it. Managers and administrators can&rsquo;t.</p>
 
             <dl className={styles.facts}>
               <div><dt>Role</dt><dd>{ROLE_LABELS[role] ?? role}</dd></div>
               <div><dt>Member since</dt><dd>{formatDate(profile.date_of_joining)}</dd></div>
-              {!isLegacy && email && <div><dt>Email</dt><dd>{email}</dd></div>}
+              {email && <div><dt>Email</dt><dd>{email}</dd></div>}
             </dl>
 
             <div className={styles.actions}>
@@ -372,16 +353,10 @@ export default function Profile() {
         {/* Password */}
         <section className={styles.card} aria-labelledby="password-heading">
           <h2 id="password-heading" className={styles.cardTitle}>Password</h2>
-          {hasDeviceLogin && (
-            <div className={styles.notice} role="note">
-              This account was created before passwords were required. Set one now so you can sign in from any device;
-              until then this browser signs in from your username alone.
-            </div>
-          )}
           <form className={styles.form} onSubmit={handleSavePassword} noValidate>
             {[
-              ...(hasDeviceLogin ? [] : [['current', 'Current password', 'current-password']]),
-              ['next', hasDeviceLogin ? 'Choose a password' : 'New password', 'new-password'],
+              ['current', 'Current password', 'current-password'],
+              ['next', 'New password', 'new-password'],
               ['confirm', 'Confirm password', 'new-password'],
             ].map(([name, label, ac]) => (
               <div key={name} className={styles.field}>
@@ -396,8 +371,8 @@ export default function Profile() {
               </div>
             ))}
             <div className={styles.actions}>
-              <button type="submit" className={`${styles.btn} ${styles.btnPrimary}`} disabled={pwBusy || (!hasDeviceLogin && !pw.current) || !pw.next}>
-                {pwBusy ? 'Saving…' : hasDeviceLogin ? 'Set password' : 'Change password'}
+              <button type="submit" className={`${styles.btn} ${styles.btnPrimary}`} disabled={pwBusy || !pw.current || !pw.next}>
+                {pwBusy ? 'Saving…' : 'Change password'}
               </button>
             </div>
           </form>
@@ -433,7 +408,7 @@ export default function Profile() {
 
       {deleting && (
         <DeleteAccountModal
-          profile={profile} email={email} askPassword={!hasDeviceLogin}
+          profile={profile} email={email} askPassword={true}
           onClose={() => setDeleting(false)} onDeleted={handleDeleted}
         />
       )}

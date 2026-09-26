@@ -28,3 +28,5 @@ supabase/.temp/
 .env.*
 !.env.example
 !supabase/.env.drive.example
+!.env.example
+!supabase/.env.drive.example

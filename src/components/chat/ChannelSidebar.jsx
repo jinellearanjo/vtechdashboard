@@ -62,7 +62,7 @@ export default function ChannelSidebar({
             <span>Departments</span>
           </div>
           {depChans.map(c => (
-            <Row key={c.id} channel={c} active={c.id === activeId} title={titleOf(c)} icon="\uD83D\uDD12" />
+            <Row key={c.id} channel={c} active={c.id === activeId} title={titleOf(c)} icon="🔒" />
           ))}
         </div>
       )}

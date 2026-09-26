@@ -6,8 +6,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { supabase } from '../../lib/supabase'
 import {
   MAX_MESSAGE_LENGTH, PAGE_SIZE, fetchMessages, sendMessage, editMessage, deleteMessage,
+  fetchReactions, addReaction, removeReaction,
 } from '../../lib/chat'
 import Avatar from '../Avatar'
+import EmojiPicker from './EmojiPicker'
 import { fullName, splitLinks, formatClock, groupMessages, upsertMessage } from './chatUtils'
 import styles from './Chat.module.css'
 
@@ -17,6 +19,35 @@ function MessageText({ text }) {
       ? <a key={i} href={part.value} target="_blank" rel="noopener noreferrer">{part.value}</a>
       : part.value
   )
+}
+
+// reactions state shape: { [messageId]: [{ user_id, emoji }] }
+function groupReactions(rows) {
+  const out = {}
+  for (const r of rows) (out[r.message_id] ??= []).push({ user_id: r.user_id, emoji: r.emoji })
+  return out
+}
+function addToGroup(state, r) {
+  const list = state[r.message_id] ?? []
+  if (list.some(x => x.user_id === r.user_id && x.emoji === r.emoji)) return state
+  return { ...state, [r.message_id]: [...list, { user_id: r.user_id, emoji: r.emoji }] }
+}
+function removeFromGroup(state, r) {
+  const list = state[r.message_id]
+  if (!list) return state
+  return { ...state, [r.message_id]: list.filter(x => !(x.user_id === r.user_id && x.emoji === r.emoji)) }
+}
+// [{ emoji, count, mine }] sorted by first-used order
+function summarizeReactions(list, meId) {
+  const order = []
+  const counts = new Map()
+  for (const r of list ?? []) {
+    if (!counts.has(r.emoji)) { counts.set(r.emoji, { count: 0, mine: false }); order.push(r.emoji) }
+    const entry = counts.get(r.emoji)
+    entry.count++
+    if (r.user_id === meId) entry.mine = true
+  }
+  return order.map(emoji => ({ emoji, ...counts.get(emoji) }))
 }
 
 export default function MessageThread({
@@ -32,11 +63,15 @@ export default function MessageThread({
   const [sending,      setSending]      = useState(false)
   const [editing,      setEditing]      = useState(null) // { id, text }
   const [showJump,     setShowJump]     = useState(false)
+  const [reactions,    setReactions]    = useState({}) // messageId -> [{ user_id, emoji }]
+  const [openPicker,   setOpenPicker]   = useState(null) // message id whose reaction picker is open
+  const [composerPickerOpen, setComposerPickerOpen] = useState(false)
 
   const listRef     = useRef(null)
   const stickRef    = useRef(true)   // keep the view pinned to the newest message
   const preserveRef = useRef(null)   // scrollHeight before older messages were added
   const textareaRef = useRef(null)
+  const messageIdsRef = useRef(new Set()) // kept fresh below; read by the reactions subscription
 
   const archived = Boolean(channel.archived_at)
 
@@ -44,12 +79,14 @@ export default function MessageThread({
   useEffect(() => {
     let active = true
     fetchMessages(channel.id)
-      .then(list => {
+      .then(async list => {
         if (!active) return
         setMessages(list)
         setHasMore(list.length === PAGE_SIZE)
         setLoaded(true)
         onRead(channel.id)
+        const r = await fetchReactions(list.map(m => m.id))
+        if (active) setReactions(groupReactions(r))
       })
       .catch(e => { if (active) setLoadError(e.message) })
     return () => { active = false }
@@ -74,8 +111,25 @@ export default function MessageThread({
         ({ new: m }) => setMessages(list => upsertMessage(list, m))
       )
       .subscribe()
-    return () => { supabase.removeChannel(live) }
+
+    // Reactions have no channel_id column, so this listens globally and ignores anything for a
+    // message that isn't part of this thread (checked against the ref below, kept fresh every render).
+    const reactionsChannel = supabase
+      .channel(`reactions-${channel.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'message_reactions' }, ({ new: r }) => {
+        if (!messageIdsRef.current.has(r.message_id)) return
+        setReactions(prev => addToGroup(prev, r))
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'message_reactions' }, ({ old: r }) => {
+        if (!messageIdsRef.current.has(r.message_id)) return
+        setReactions(prev => removeFromGroup(prev, r))
+      })
+      .subscribe()
+
+    return () => { supabase.removeChannel(live); supabase.removeChannel(reactionsChannel) }
   }, [channel.id, me.id, onRead])
+
+  useEffect(() => { messageIdsRef.current = new Set(messages.map(m => m.id)) }, [messages])
 
   // ── Scrolling ──────────────────────────────────────────────
   useLayoutEffect(() => {
@@ -172,6 +226,26 @@ export default function MessageThread({
       const updated = await deleteMessage(m.id)
       setMessages(list => upsertMessage(list, updated))
     } catch (e) {
+      showToast(e.message, 'error')
+    }
+  }
+
+  // ── Reactions ────────────────────────────────────────────────
+  const toggleReaction = async (messageId, emoji) => {
+    const mine = (reactions[messageId] ?? []).some(r => r.user_id === me.id && r.emoji === emoji)
+    setOpenPicker(null)
+    // optimistic
+    setReactions(prev => mine
+      ? removeFromGroup(prev, { message_id: messageId, user_id: me.id, emoji })
+      : addToGroup(prev, { message_id: messageId, user_id: me.id, emoji }))
+    try {
+      if (mine) await removeReaction(messageId, me.id, emoji)
+      else await addReaction(messageId, me.id, emoji)
+    } catch (e) {
+      // roll back on failure
+      setReactions(prev => mine
+        ? addToGroup(prev, { message_id: messageId, user_id: me.id, emoji })
+        : removeFromGroup(prev, { message_id: messageId, user_id: me.id, emoji }))
       showToast(e.message, 'error')
     }
   }
@@ -283,10 +357,42 @@ export default function MessageThread({
                       {m.edited_at && <span className={styles.edited}>(edited)</span>}
                     </p>
                   )}
+
+                  {!isDeleted && summarizeReactions(reactions[m.id], me.id).length > 0 && (
+                    <div className={styles.reactionRow}>
+                      {summarizeReactions(reactions[m.id], me.id).map(r => (
+                        <button
+                          key={r.emoji}
+                          type="button"
+                          className={`${styles.reactionPill} ${r.mine ? styles.reactionPillMine : ''}`}
+                          onClick={() => toggleReaction(m.id, r.emoji)}
+                          disabled={archived}
+                          aria-pressed={r.mine}
+                          aria-label={`${r.emoji} reaction, ${r.count} ${r.count === 1 ? 'person' : 'people'}${r.mine ? ', including you' : ''}`}
+                        >
+                          <span aria-hidden="true">{r.emoji}</span> {r.count}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                {!isEditing && (canEdit || canDelete) && (
+                {!isEditing && !isDeleted && !archived && (
                   <div className={styles.msgActions}>
+                    <span className={styles.reactAnchor}>
+                      <button
+                        type="button"
+                        className={styles.actionBtn}
+                        onClick={() => setOpenPicker(p => (p === m.id ? null : m.id))}
+                        aria-label="Add a reaction"
+                        title="React"
+                      >
+                        😊+
+                      </button>
+                      {openPicker === m.id && (
+                        <EmojiPicker onPick={emoji => toggleReaction(m.id, emoji)} onClose={() => setOpenPicker(null)} />
+                      )}
+                    </span>
                     {canEdit && (
                       <button type="button" className={styles.actionBtn} onClick={() => setEditing({ id: m.id, text: m.body })}>Edit</button>
                     )}
@@ -328,6 +434,28 @@ export default function MessageThread({
             <span className={styles.composerHint}>Enter to send · Shift+Enter for a new line</span>
           )}
         </div>
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={() => setComposerPickerOpen(o => !o)}
+          disabled={archived}
+          aria-label="Insert an emoji"
+          title="Emoji"
+        >
+          😊
+        </button>
+        {composerPickerOpen && (
+          <span className={styles.composerEmojiAnchor}>
+            <EmojiPicker
+              onPick={emoji => {
+                setDraft(d => d + emoji)
+                setComposerPickerOpen(false)
+                textareaRef.current?.focus()
+              }}
+              onClose={() => setComposerPickerOpen(false)}
+            />
+          </span>
+        )}
         <button
           type="button"
           className={`${styles.btn} ${styles.btnPrimary}`}

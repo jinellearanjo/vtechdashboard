@@ -152,6 +152,15 @@ Applied on the hosted project with `supabase migration repair --status applied 2
   task documents), 5 files per message, only the sender can add them to their own message.
 - **Chat search:** `search_messages(query, limit)` (security invoker, so RLS still limits results to conversations you can read).
 
+### `20260920001000_remove_legacy_add_reactions.sql`
+- **Legacy accounts removed.** `handle_new_user` no longer honours an `is_legacy` signup flag — every new account
+  gets a real email. `guard_legacy_role` now rejects `is_legacy = true` outright, from any client or the SQL editor,
+  so a legacy account can never be (re)created, even by hand. Nothing deletes existing legacy rows (there were none
+  in testing); a `legacy_conversion_needed` table records any that exist so an admin can follow up (give them an email
+  and a normal password) rather than silently locking them out.
+- **Message reactions:** `message_reactions` (message, user, emoji; read for anyone who can read the message; insert/delete
+  only your own; capped at 20 distinct emoji per person per message), added to the realtime publication.
+
 ### SQL you ran by hand earlier in the session (before migrations)
 - Seed invite `MGRINVITE` (manager, 7 days). **Delete it:** `delete from public.invite_codes where code = 'MGRINVITE';`
 - Insert of your admin profile (`admin`, id `d5be9294-...`).
@@ -316,9 +325,35 @@ Applied on the hosted project with `supabase migration repair --status applied 2
   Script logic tested against a mock server (200/401 pass; 503, unreachable and missing secrets fail).
 - `docs/SESSION_CHANGES.md`: this file.
 
-## 7. What you still need to do
+## Round 8: legacy removal, forgot password, reactions, and a sidebar bug fix
+- **Sidebar bug fixed:** the department lock icon was showing as the literal text `\uD83D\uDD12` instead of 🔒 — a
+  string-escaping mistake when I wrote `ChannelSidebar.jsx`. It's now a real emoji character. Sorry about that.
+- **Legacy accounts (username + local password, no email) are gone.** `Login.jsx` and `Signup.jsx` were rewritten
+  from scratch as email/password only; `src/lib/legacy.js` and every device-credential / "set a password" code path in
+  `Profile.jsx` and `Home.jsx` were removed. See the migration above for the database side.
+- **Forgot / reset password:** `src/pages/ForgotPassword.jsx` (`/forgot-password`) sends a Supabase reset email and
+  shows the same message either way, so it can't be used to check who has an account. `src/pages/ResetPassword.jsx`
+  (`/reset-password`) is where the emailed link lands; it waits for the `PASSWORD_RECOVERY` auth event before enabling
+  the form, and tells the person to request a new link if none arrives within a few seconds (expired/used link).
+  **Needs one manual step:** in the Supabase dashboard, Authentication → URL Configuration, add
+  `<your site>/reset-password` as a Redirect URL (and set the Site URL if you haven't). Also check
+  Authentication → Emails → "Reset Password" uses reasonable wording — Supabase's default templates are quite bare.
+  The project's built-in email sending has a low rate limit; for real use, connect a custom SMTP provider
+  (Authentication → Settings → SMTP).
+- **Contact address:** Terms.jsx used a fake `admin@verlyntech.internal` address; both Terms and Privacy now use
+  `verlyntech@gmail.com`.
+- **Emoji and reactions in chat:** `src/components/chat/EmojiPicker.jsx` (a fixed 40-emoji grid, no external
+  dependency) is used two ways — an 😊 button in the composer inserts an emoji into the message text, and a 😊+
+  button on any message (yours or someone else's) opens the same picker to react. Reactions show as pills under the
+  message (emoji + count), highlighted when you're one of the reactors; click a pill to add or remove your own
+  reaction. Tested at the database level (own-only insert/delete, the 20-emoji cap, and that reactions respect the
+  same read access as the message itself); the picker and pills were not tested in a real browser.
+- **Backups:** left as-is, per your call — the free tier still has none. Nothing to build here; just noting it stays
+  a manual/periodic-export job if you ever want it.
+
+## 7. What you still need to do## 7. What you still need to do
 1. Extract the final zip at the repo root.
-2. `supabase db push` (applies whichever of `...0300` to `...0900` are not applied yet).
+2. `supabase db push` (applies whichever of `...0300` to `...1000` are not applied yet).
 3. Delete the `[functions.mark-invite-used]` block at the end of `supabase/config.toml`.
 4. Add the two GitHub secrets for the keep-alive workflow.
 5. Delete the `MGRINVITE` invite; remove throwaway test accounts (Authentication, Users).
@@ -328,7 +363,6 @@ Applied on the hosted project with `supabase migration repair --status applied 2
 9. Commit and push.
 
 ## 8. Known gaps (not done)
-- Old passwordless legacy accounts can still sign in once from the browser that remembers them (then must set a password); set `VITE_ALLOW_DEVICE_LOGIN=false` once everyone has.
 - Profile photos live in a public bucket (random filenames, handed out only to signed-in users); anyone who has a URL can open it.
 - No email change and no "forgot password" email flow.
 - Photo cropping (canvas) is untested outside a real browser; the crop math is unit-tested, the rest was not run.
