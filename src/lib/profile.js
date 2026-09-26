@@ -22,6 +22,20 @@ export async function changePassword(email, currentPassword, newPassword) {
   if (error) throw new Error(error.message)
 }
 
+// Sends confirmation links to both the current and new address (Supabase's "Secure email change"
+// default) — the address on file only updates once both are clicked. Re-checks the current password
+// first, same as changePassword above.
+export async function changeEmail(email, currentPassword, newEmail) {
+  const { error: verifyError } = await supabase.auth.signInWithPassword({ email, password: currentPassword })
+  if (verifyError) throw new Error('Your current password is incorrect.')
+
+  const { error } = await supabase.auth.updateUser(
+    { email: newEmail },
+    { emailRedirectTo: `${window.location.origin}/profile` },
+  )
+  if (error) throw new Error(error.message)
+}
+
 // null when deletion is allowed, otherwise the reason in plain words.
 export async function checkAccountDeletion() {
   const { data, error } = await supabase.rpc('check_account_deletion')

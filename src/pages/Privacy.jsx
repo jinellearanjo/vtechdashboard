@@ -5,7 +5,7 @@
 import { Link } from 'react-router-dom'
 import styles from './Terms.module.css'
 
-const LAST_UPDATED = '2026-09-20'
+const LAST_UPDATED = '2026-09-26'
 const COMPANY      = 'Verlyn Tech'
 const CONTACT      = 'verlyntech@gmail.com'
 
@@ -38,7 +38,7 @@ export default function Privacy() {
           <section className={styles.section}>
             <h2 className={styles.sectionHeading}>2. What we collect</h2>
             <ul className={styles.list}>
-              <li><strong>Account details:</strong> your name, username, date of birth, and (for email accounts) your email address. Passwords are stored only in hashed form by our sign-in provider; we never see them.</li>
+              <li><strong>Account details:</strong> your name, username, date of birth (kept for internal HR record-keeping only), and (for email accounts) your email address. Passwords are stored only in hashed form by our sign-in provider; we never see them.</li>
               <li><strong>Profile photo</strong> (optional). It is cropped and resized on your device before upload, which removes camera and location data.</li>
               <li><strong>Work information:</strong> tasks assigned to you or your teams, deadlines and statuses, team membership, and documents you submit with review notes.</li>
               <li><strong>Messages</strong> you send in channels, group chats and direct messages.</li>
@@ -78,6 +78,12 @@ export default function Privacy() {
               These providers process data on our behalf to deliver the Service. Profile photos are stored so that
               anyone who has the exact (randomly named) link can open them; the links are only shown to signed-in users.
             </p>
+            <p>
+              Supabase, Vercel and Google may store and process your information outside the United Arab Emirates, for
+              example in data centers in the United States or Europe. We only use providers that publish their own
+              data-protection and security commitments, and your information is only sent to them for the purposes
+              described in this policy.
+            </p>
           </section>
 
           <section className={styles.section}>
@@ -104,8 +110,10 @@ export default function Privacy() {
             </ul>
             <p>
               An account cannot be deleted while tasks that are still open are assigned to it, or if it is the only
-              administrator account. Data removed from the Service may remain briefly in our providers&rsquo; systems
-              before it is permanently erased.
+              administrator account. Data removed from the Service may remain briefly in our providers&rsquo;
+              systems before it is permanently erased. Anonymized messages and documents (described above) are kept
+              for as long as the task, channel or conversation they belong to is kept as part of the Service&rsquo;s
+              records &mdash; they are not deleted on a separate schedule of their own.
             </p>
           </section>
 
@@ -121,8 +129,11 @@ export default function Privacy() {
           <section className={styles.section}>
             <h2 className={styles.sectionHeading}>9. Your choices and contact</h2>
             <p>
-              To ask what we hold about you, to correct something you cannot change yourself, or to raise a concern,
-              contact <a href={`mailto:${CONTACT}`} className={styles.link}>{CONTACT}</a> or your administrator.
+              To ask what we hold about you, to correct something you cannot change yourself, to object to a
+              particular use of your information, or to ask us to restrict how we use it, contact{' '}
+              <a href={`mailto:${CONTACT}`} className={styles.link}>{CONTACT}</a> or your administrator. If you are
+              not satisfied with how we&rsquo;ve handled your request, you can also raise it with the UAE Data
+              Office, the regulator for the Federal Decree-Law No. 45 of 2021 on the Protection of Personal Data.
             </p>
           </section>
 

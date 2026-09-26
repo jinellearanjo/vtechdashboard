@@ -11,7 +11,7 @@ import Modal from '../components/Modal'
 import Toast from '../components/Toast'
 import { AVATAR_ACCEPT, prepareAvatar, uploadAvatar, removeAvatar } from '../lib/avatars'
 import {
-  updateDetails, changePassword, checkAccountDeletion, verifyPassword, deleteAccount,
+  updateDetails, changePassword, changeEmail, checkAccountDeletion, verifyPassword, deleteAccount,
   fetchBirthdate, saveBirthdate,
 } from '../lib/profile'
 import DepartmentPicker from '../components/DepartmentPicker'
@@ -41,6 +41,11 @@ const passwordSchema = z.object({
     .regex(/[0-9]/, 'Needs a number'),
   confirm: z.string().min(1, 'Confirm the new password'),
 }).refine(d => d.next === d.confirm, { message: 'Passwords do not match', path: ['confirm'] })
+
+const emailSchema = z.object({
+  currentPassword: z.string().min(1, 'Enter your current password'),
+  newEmail: z.string().trim().toLowerCase().email('Enter a valid email address'),
+})
 
 function issuesToErrors(error) {
   const errors = {}
@@ -184,6 +189,12 @@ export default function Profile() {
   const [pwErrors, setPwErrors] = useState({})
   const [pwBusy,   setPwBusy]   = useState(false)
 
+  // email
+  const [emailForm,   setEmailForm]   = useState({ currentPassword: '', newEmail: '' })
+  const [emailErrors, setEmailErrors] = useState({})
+  const [emailBusy,   setEmailBusy]   = useState(false)
+  const [emailSent,   setEmailSent]   = useState(false)
+
   // delete
   const [deleting, setDeleting] = useState(false)
 
@@ -272,6 +283,34 @@ export default function Profile() {
   const handleDeleted = async () => {
     await signOut()
     navigate('/login', { replace: true, state: { notice: 'Your account has been deleted.' } })
+  }
+
+  const handleEmailFormChange = (e) => {
+    const { name, value } = e.target
+    setEmailForm(f => ({ ...f, [name]: value }))
+    setEmailErrors(errs => ({ ...errs, [name]: undefined }))
+  }
+
+  const handleSaveEmail = async (e) => {
+    e.preventDefault()
+    const result = emailSchema.safeParse(emailForm)
+    if (!result.success) { setEmailErrors(issuesToErrors(result.error)); return }
+
+    const v = result.data
+    if (v.newEmail === email.toLowerCase()) {
+      setEmailErrors({ newEmail: 'That is already your email address.' })
+      return
+    }
+
+    setEmailBusy(true)
+    try {
+      await changeEmail(email, v.currentPassword, v.newEmail)
+      setEmailSent(true)
+      setEmailForm({ currentPassword: '', newEmail: '' })
+    } catch (err) {
+      showToast(err.message, 'error')
+    }
+    setEmailBusy(false)
   }
 
   const field = (name, label, props = {}) => (
@@ -376,6 +415,58 @@ export default function Profile() {
               </button>
             </div>
           </form>
+        </section>
+
+        {/* Email */}
+        <section className={styles.card} aria-labelledby="email-heading">
+          <h2 id="email-heading" className={styles.cardTitle}>Email address</h2>
+          <p className={styles.muted}>Signing in with: <strong>{email}</strong></p>
+
+          {emailSent ? (
+            <>
+              <p className={styles.hint}>
+                Confirmation links sent to both <strong>{email}</strong> and the new address. The change only takes
+                effect once both are clicked.
+              </p>
+              <div className={styles.actions}>
+                <button type="button" className={styles.btn} onClick={() => setEmailSent(false)}>
+                  Use a different address
+                </button>
+              </div>
+            </>
+          ) : (
+            <form className={styles.form} onSubmit={handleSaveEmail} noValidate>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="new-email">New email address</label>
+                <input
+                  id="new-email" name="newEmail" type="email" autoComplete="email"
+                  className={`${styles.input} ${emailErrors.newEmail ? styles.inputError : ''}`}
+                  value={emailForm.newEmail} onChange={handleEmailFormChange} disabled={emailBusy}
+                  aria-invalid={!!emailErrors.newEmail}
+                />
+                {emailErrors.newEmail && <span className={styles.fieldError} role="alert">{emailErrors.newEmail}</span>}
+              </div>
+              <div className={styles.field}>
+                <label className={styles.label} htmlFor="email-current-password">Current password</label>
+                <input
+                  id="email-current-password" name="currentPassword" type="password" autoComplete="current-password"
+                  className={`${styles.input} ${emailErrors.currentPassword ? styles.inputError : ''}`}
+                  value={emailForm.currentPassword} onChange={handleEmailFormChange} disabled={emailBusy}
+                  aria-invalid={!!emailErrors.currentPassword}
+                />
+                {emailErrors.currentPassword && <span className={styles.fieldError} role="alert">{emailErrors.currentPassword}</span>}
+              </div>
+              <p className={styles.hint}>
+                We&rsquo;ll email confirmation links to your current and new address; the change only applies once
+                both are confirmed, so you keep access if this was a mistake.
+              </p>
+              <div className={styles.actions}>
+                <button type="submit" className={`${styles.btn} ${styles.btnPrimary}`} disabled={emailBusy || !emailForm.newEmail || !emailForm.currentPassword}>
+                  {emailBusy ? 'Sending…' : 'Send confirmation'}
+                </button>
+              </div>
+            </form>
+          )}
         </section>
 
         {/* Departments */}

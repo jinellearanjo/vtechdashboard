@@ -6,6 +6,15 @@ import Avatar from '../Avatar'
 import { conversationTitle } from './chatUtils'
 import styles from './Chat.module.css'
 
+function LockIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  )
+}
+
 function Row({ channel, active, title, icon, person }) {
   const unread = channel.unread_count
   return (
@@ -62,7 +71,7 @@ export default function ChannelSidebar({
             <span>Departments</span>
           </div>
           {depChans.map(c => (
-            <Row key={c.id} channel={c} active={c.id === activeId} title={titleOf(c)} icon="🔒" />
+            <Row key={c.id} channel={c} active={c.id === activeId} title={titleOf(c)} icon={<LockIcon />} />
           ))}
         </div>
       )}

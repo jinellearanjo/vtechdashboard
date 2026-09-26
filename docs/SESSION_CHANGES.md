@@ -351,6 +351,37 @@ Applied on the hosted project with `supabase migration repair --status applied 2
 - **Backups:** left as-is, per your call — the free tier still has none. Nothing to build here; just noting it stays
   a manual/periodic-export job if you ever want it.
 
+## Round 9: sidebar lock icon, privacy policy PDPL update
+- **Department lock icon replaced.** The 🔒 emoji character in `ChannelSidebar.jsx` (department rows in the chat
+  sidebar) is now an inline SVG icon instead, matching the feather-style icons already used in `Navbar.jsx` and the
+  dashboards (`stroke="currentColor"`, sized to sit inside the existing 24×24 `.convoIcon` box). It inherits the
+  active/inactive colors automatically since it's `currentColor`, so no CSS changes were needed. Only file touched:
+  `src/components/chat/ChannelSidebar.jsx`.
+- **Privacy policy updated for UAE PDPL (Federal Decree-Law No. 45 of 2021):** added a cross-border transfer
+  disclosure (Section 5 — Supabase/Vercel/Google may process data outside the UAE), stated the purpose for
+  collecting date of birth (Section 2 — internal HR record-keeping), added the right to object/restrict processing
+  and a pointer to the UAE Data Office complaints route (Section 9), and clarified that anonymized records aren't on
+  a separate deletion schedule (Section 7). `LAST_UPDATED` bumped to today. **This is a draft, not a lawyer-reviewed
+  policy** — written to plausibly cover the law's actual requirements given the app's real behavior, but get it
+  checked by a UAE-qualified lawyer before treating it as compliant, especially the cross-border transfer wording.
+- Not tested in a real browser (no visual regression risk expected on the icon swap; the Privacy page is static
+  content, low risk).
+
+## Round 10: email-change flow
+- **Self-service email change** added to `/profile`. New "Email address" card: enter a new address + your
+  current password, get "Send confirmation" — this calls `supabase.auth.updateUser({ email })`. Supabase's default
+  **"Secure email change"** setting sends confirmation links to *both* the current and new address; the address on
+  file only updates once both are clicked, so a wrong or malicious change can't silently lock you out. `lib/profile.js`
+  gained `changeEmail()`, following the same re-verify-password-first pattern as `changePassword()`.
+- Confirmation links redirect back to `/profile` (`emailRedirectTo`) after being clicked. If the mail lands via
+  Supabase's built-in sender (2/hour) rather than a custom SMTP, it may be slow to arrive — worth setting up custom
+  SMTP (see below) before relying on this for anyone other than yourself.
+- **Not tested against live Supabase** — the reauth call is exercised by the existing password-change code path, but
+  the actual double-confirmation email flow needs a live project to test (no way to fake Supabase's mailer locally).
+  Test by changing your own email once this is live: request the change, confirm both links land, confirm the
+  address only updates after both are clicked, and confirm a wrong password is rejected before any email is sent.
+- Files touched: `src/pages/Profile.jsx`, `src/lib/profile.js`.
+
 ## 7. What you still need to do## 7. What you still need to do
 1. Extract the final zip at the repo root.
 2. `supabase db push` (applies whichever of `...0300` to `...1000` are not applied yet).
