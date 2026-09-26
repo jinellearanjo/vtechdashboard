@@ -30,3 +30,7 @@ supabase/.temp/
 !supabase/.env.drive.example
 !.env.example
 !supabase/.env.drive.example
+!.env.example
+!supabase/.env.drive.example
+!.env.example
+!supabase/.env.drive.example
