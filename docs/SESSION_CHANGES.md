@@ -382,6 +382,13 @@ Applied on the hosted project with `supabase migration repair --status applied 2
   address only updates after both are clicked, and confirm a wrong password is rejected before any email is sent.
 - Files touched: `src/pages/Profile.jsx`, `src/lib/profile.js`.
 
+## Round 11: dropped the department icon entirely
+- Turns out the SVG lock icon (round 9) wasn't the fix — you just don't want an icon there at all. Department rows
+  in `ChannelSidebar.jsx` now show no icon, just the channel name; `Row` skips rendering the icon box when none is
+  passed, so the layout doesn't leave an empty square behind. Public channels (`#`) and group chats (initials) are
+  unaffected. Only file touched: `src/components/chat/ChannelSidebar.jsx`.
+- Not tested in a real browser; low risk, same reasoning as round 9.
+
 ## 7. What you still need to do## 7. What you still need to do
 1. Extract the final zip at the repo root.
 2. `supabase db push` (applies whichever of `...0300` to `...1000` are not applied yet).
